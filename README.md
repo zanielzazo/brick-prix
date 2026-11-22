@@ -14,7 +14,11 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 
 - **2 players**: split screen, standing start, 1–10 laps
 - **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
-- **Chaos** (1 or 2 players): mystery **?** boxes on the straights give you a Turbo Brick, Oil Slick, Loose Tyre or Safety Car. Your boost key fires the item, and whoever is behind gets better items. No ERS, DRS or track-limit penalties; chaos laps don't count for records.
+- **Chaos** (1 or 2 players): mystery **?** boxes on the straights give you an item, and your boost key fires it. Whoever is behind gets better items. No ERS, DRS or track-limit penalties; chaos laps don't count for records.
+  - **Items**: Turbo Brick (or Triple Turbo), Oil Slick, Loose Tyre (rolls ahead), Safety Car (slows the leader), Local Shower (a rain cloud over the car ahead, less grip for 4 s), Phantom (drive through cars and hazards for 3.5 s), Brick Wall (dropped behind you) and Pit Stop (clears a spin, Safety Car or shower and gives a short boost)
+  - **Boost pads** (blue arrows) at corner exits and **jump ramps** (yellow and black) on the two fastest straights; you can drive around the ramps
+  - **Drift boost**: hold throttle and brake together while steering. Blue sparks after 1 s and orange after 2 s; let go for a boost
+  - **Weather** can change every lap: dry, rain (less grip) or a glitter storm
 - **CPU drivers**: add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos, in 1- or 2-player mode. They pass slower cars, use items in Chaos, and their laps don't count for records.
 - **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race

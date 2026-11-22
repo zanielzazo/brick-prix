@@ -154,7 +154,7 @@
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
         <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records.</div>
-        <div><b>Chaos</b> – mystery boxes on the straights give you Turbo Brick (boost), Oil Slick (drop behind), Loose Tyre (rolls ahead) or Safety Car (slows the leader). The boost key fires your item; whoever is behind gets better items.</div>
+        <div><b>Chaos</b> – mystery boxes give you Turbo Brick, Oil Slick, Loose Tyre, Safety Car (slows the leader), Local Shower (rain on the car ahead), Phantom (drive through anything), Brick Wall (drop behind) or Pit Stop (fixes you). The boost key fires it; whoever is behind gets better items. Blue pads boost you, yellow ramps launch you. <b>Drift</b>: hold throttle + brake while steering – blue sparks after 1 s, orange after 2 s – and let go for a boost. The weather changes every lap.</div>
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · gamepads work too (triggers, stick, <kbd>Y</kbd> camera).</div>
       </div>
       <div class="go"><button class="btn" id="helpCloseBtn">Close (Esc)</button></div>
@@ -785,6 +785,7 @@ function makeCar(id) {
     warnings: 0, penalty: 0, lapInvalid: false, lastInvalid: false, off: null, slowT: 0, slowV: 0,
     timing: false, curTrace: [], traceK: 0, bestTrace: null,
     item: null, itemCount: 0, rollT: 0, rollItem: null, prevBoost: false, turboT: 0, spinT: 0, spinDir: 1, scT: 0, scV: 0,
+    showerT: 0, phantomT: 0, driftOn: false, air: false, airAlt: 0, airV: 0, drifting: false, driftT: 0, padT: 0,
   };
 }
 // ---------------------------------------------------------------- CPU drivers
@@ -815,6 +816,11 @@ function cpuItem(c) {
   else if (it === 'turbo' || it === 'triple') fire = c.itemT > 0.6 && c.spinT <= 0 && (T.vProf ? T.vProf[(c.ti + 20) % T.N] > 70 : true);
   else if (it === 'oil') fire = others.some(o => c.prog - o.prog > 5 && c.prog - o.prog < 45) || c.itemT > 8;
   else if (it === 'tyre') fire = others.some(o => o.prog - c.prog > 10 && o.prog - c.prog < 160) || c.itemT > 10;
+  else if (it === 'shower') fire = others.some(o => o.prog - c.prog > 5 && o.prog - c.prog < 400) || c.itemT > 3;
+  else if (it === 'wall') fire = others.some(o => c.prog - o.prog > 8 && c.prog - o.prog < 50) || c.itemT > 8;
+  else if (it === 'pit') fire = c.spinT > 0.3 || c.scT > 0 || c.showerT > 0 || c.itemT > 6;
+  else if (it === 'phantom') fire = c.itemT > 0.8 && (others.some(o => o.prog - c.prog > 0 && o.prog - c.prog < 18)
+    || hazards.some(h => (h.type === 'oil' || h.type === 'wall' || h.type === 'tyre') && h.owner !== c && (h.x - c.x) ** 2 + (h.y - c.y) ** 2 < 2500)) || c.itemT > 5;
   if (fire) c.itemT = 0;
   return fire;
 }
@@ -822,7 +828,7 @@ function cpuInput(c) {
   const v = Math.hypot(c.vx, c.vy);
   // unstick: crawling for a while (spun into a wall, facing the wrong way) → back on track
   if (state === 'race' && !c.finished) {
-    c.stuckT = v < 3 ? c.stuckT + STEP : 0;
+    c.stuckT = v < 3 && !c.air ? c.stuckT + STEP : 0;
     if (c.stuckT > 2.5) { const p = sToPoint(c.s, 0); c.x = p.x; c.y = p.y; c.h = p.h; c.vx = c.vy = 0; c.ti = p.i; c.ghost = 2; c.stuckT = 0; }
   }
   let g = c.skill;
@@ -844,7 +850,7 @@ function cpuInput(c) {
   const la = sToPoint(c.s + ahead, lat);
   let ang = Math.atan2(la.y - c.y, la.x - c.x) - c.h;
   while (ang > Math.PI) ang -= 2 * Math.PI; while (ang < -Math.PI) ang += 2 * Math.PI;
-  const vt = (T.vProf ? T.vProf[(c.ti + 2) % T.N] : 60) * Math.sqrt(g) * (c.laneT > 0 ? 0.97 : 1);
+  const vt = (T.vProf ? T.vProf[(c.ti + 2) % T.N] : 60) * Math.sqrt(g * gripMul(c)) * (c.laneT > 0 ? 0.97 : 1);
   return { throttle: c.vf < vt - 0.5 ? 1 : 0, brake: c.vf > vt + 1.5 ? 1 : 0, steer: clamp(ang * 4, -1, 1), boost: cpuItem(c), analog: true };
 }
 function standings() {                       // finished cars by place, then everyone else by progress
@@ -866,10 +872,63 @@ const isChaos = () => cfg.mode === 'chaos' && cars.length > 0 && state !== 'menu
 // ---------------------------------------------------------------- chaos mode
 // Mystery boxes in rows of three on the straights before big braking zones; items are rolled with
 // catch-up weighting (whoever is behind gets better ones) and fired with the boost key.
-let boxes = [], hazards = [];
-const ITEM_NAMES = { turbo: 'TURBO BRICK', triple: 'TRIPLE TURBO', oil: 'OIL SLICK', tyre: 'LOOSE TYRE', sc: 'SAFETY CAR' };
-const ITEM_LIST = ['turbo', 'oil', 'tyre', 'sc', 'triple'];
-const ITEM_SHORT = { turbo: 'TURBO', triple: 'TURBO', oil: 'OIL', tyre: 'TYRE', sc: 'SAFETY CAR' };
+// The track joins in too: boost pads at corner exits, jump ramps on the fastest straights, drift
+// boosts, and the weather changes every lap.
+let boxes = [], hazards = [], pads = [], ramps = [], weather = 'dry', weatherLap = 0, wxMsgT = 0;
+const ITEM_NAMES = { turbo: 'TURBO BRICK', triple: 'TRIPLE TURBO', oil: 'OIL SLICK', tyre: 'LOOSE TYRE', sc: 'SAFETY CAR',
+  shower: 'LOCAL SHOWER', phantom: 'PHANTOM', wall: 'BRICK WALL', pit: 'PIT STOP' };
+const ITEM_LIST = ['turbo', 'oil', 'shower', 'tyre', 'phantom', 'sc', 'wall', 'triple', 'pit'];
+const ITEM_SHORT = { turbo: 'TURBO', triple: 'TURBO', oil: 'OIL', tyre: 'TYRE', sc: 'SAFETY CAR', shower: 'SHOWER', phantom: 'PHANTOM', wall: 'WALL', pit: 'PIT STOP' };
+const WEATHER = { dry: ['SKIES CLEARING', '#ffd23f', ''], rain: ['RAIN – LESS GRIP', '#7fc4ff', '🌧 RAIN'], glitter: ['GLITTER STORM!', '#ff7bd5', '✨ GLITTER'] };
+// grip multiplier from a shower cloud and the weather (always 1 outside Chaos)
+function gripMul(c) { return (c.showerT > 0 ? 0.62 : 1) * (weather === 'rain' ? 0.82 : 1); }
+function rollWeather(first) {
+  const table = first ? [['dry', 6], ['rain', 2.5], ['glitter', 1.5]] : [['dry', 4], ['rain', 3.5], ['glitter', 2.5]];
+  let r = Math.random() * table.reduce((a, t) => a + t[1], 0);
+  for (const [w, k] of table) { r -= k; if (r <= 0) return w; }
+  return 'dry';
+}
+function setWeather(w) {
+  if (w === weather) return;
+  weather = w; wxMsgT = 3; AU.beep(w === 'dry' ? 760 : 360, 0.3, 0.08);
+}
+// local frame of a pad / ramp / wall: distance along its heading and to the side
+function localOf(o, c) {
+  const dx = c.x - o.x, dy = c.y - o.y, ch = Math.cos(o.h), sh = Math.sin(o.h);
+  return { along: dx * ch + dy * sh, side: -dx * sh + dy * ch };
+}
+function placePads() {          // boost pads where the corner exits open up, after each big braking zone
+  pads = [];
+  for (const z of T.zones) {
+    const s0 = (T.S[z.b] + 45) % T.L;
+    if (boxes.some(b => Math.abs(b.s - s0) < 40) || pads.some(q => Math.abs(q.s - s0) < 120)) continue;
+    const p = sToPoint(s0, 0);
+    pads.push({ s: s0, x: p.x, y: p.y, h: p.h, alt: p.alt });
+  }
+}
+function placeRamps() {         // jump ramps in the middle of the two longest flat-out straights
+  ramps = [];
+  const v = T.vProf, segs = [];
+  if (!v) return;
+  let i0 = 0; while (v[i0] > 85 && i0 < T.N - 1) i0++;
+  let run = null;
+  for (let n = 1; n <= T.N; n++) {
+    const i = (i0 + n) % T.N;
+    if (v[i] > 85) { if (!run) run = { a: i, len: 0 }; run.len += segLen(i); }
+    else if (run) { segs.push(run); run = null; }
+  }
+  if (run) segs.push(run);
+  segs.filter(r => r.len > 250).sort((a, b) => b.len - a.len).slice(0, 2).forEach(r => {
+    let s0 = T.S[r.a] + r.len * 0.35;
+    for (const f of [0.35, 0.25, 0.45, 0.2]) {
+      s0 = T.S[r.a] + r.len * f;
+      if (!boxes.some(b => Math.abs(((b.s - s0) % T.L + T.L) % T.L - T.L / 2) > T.L / 2 - 70)) break;
+    }
+    s0 = (s0 % T.L + T.L) % T.L;
+    const p = sToPoint(s0, 0);
+    ramps.push({ s: s0, x: p.x, y: p.y, h: p.h, alt: p.alt, i: p.i });
+  });
+}
 function placeBoxes() {
   boxes = [];
   const cands = T.zones.map(z => ((T.S[z.a] - 170) % T.L + T.L) % T.L);
@@ -890,17 +949,26 @@ function lateralOf(c) { const i = c.ti; return (c.x - T.X[i]) * T.NX[i] + (c.y -
 function pickItem(c) {
   const others = cars.filter(o => o !== c && !o.finished);
   let table;
-  if (!others.length) table = [['turbo', 6], ['triple', 3], ['oil', 1]];
+  if (!others.length) table = [['turbo', 6], ['triple', 3], ['phantom', 1]];
   else {
     const leaderCar = others.reduce((a, b) => a.prog > b.prog ? a : b);
     const leading = c.prog >= leaderCar.prog;
     const gap = leading ? 0 : clamp(gapTo(c, leaderCar) || 0, 0, 10);
-    table = leading ? [['oil', 45], ['tyre', 30], ['turbo', 25]]
-      : [['turbo', 30], ['triple', 12 + gap * 3], ['tyre', 25], ['oil', 10], ['sc', 6 + gap * 5]];
+    table = leading ? [['oil', 35], ['tyre', 20], ['wall', 20], ['turbo', 15], ['phantom', 10]]
+      : [['turbo', 22], ['triple', 10 + gap * 3], ['tyre', 18], ['oil', 8], ['shower', 12 + gap * 2], ['phantom', 8], ['pit', 6], ['sc', 6 + gap * 5], ['wall', 5]];
   }
   let r = Math.random() * table.reduce((a, t) => a + t[1], 0);
   for (const [it, w] of table) { r -= w; if (r <= 0) return it; }
   return table[0][0];
+}
+function showerTarget(c) {      // the car just ahead, or (if you lead) the one just behind
+  let best = null, bd = Infinity;
+  for (const o of cars) {
+    if (o === c || o.finished) continue;
+    const d = o.prog - c.prog, k = d > 0 ? d : 1e6 - d;
+    if (k < bd) { bd = k; best = o; }
+  }
+  return best;
 }
 function scTarget(c) {
   const order = [...cars].filter(o => !o.finished).sort((a, b) => b.prog - a.prog);
@@ -926,15 +994,58 @@ function useItem(c) {
       say(c, 'SAFETY CAR ON ' + v.name.toUpperCase(), '#ffd23f', 2);
       AU.beep(520, 0.25, 0.12);
     }
+  } else if (it === 'shower') {
+    const v = showerTarget(c);
+    if (v) {
+      v.showerT = 4;
+      hazards.push({ type: 'cloud', victim: v, age: 0, life: 4 });
+      say(v, 'LOCAL SHOWER – NO GRIP', '#7fc4ff', 2);
+      say(c, 'SHOWER ON ' + v.name.toUpperCase(), '#7fc4ff', 1.6);
+      AU.beep(380, 0.25, 0.1);
+    }
+  } else if (it === 'phantom') {
+    c.phantomT = 3.5; c.ghost = Math.max(c.ghost, 3.5); c.turboT = Math.max(c.turboT, 1.2);
+    say(c, 'PHANTOM – PASS THROUGH ANYTHING', '#c9a7ff', 1.6); AU.beep(1250, 0.2, 0.08);
+  } else if (it === 'wall') {
+    const x = c.x - Math.cos(c.h) * 6, y = c.y - Math.sin(c.h) * 6;
+    hazards.push({ type: 'wall', x, y, h: c.h, alt: groundAt(x, y), owner: c, age: 0, life: 25 });
+    AU.thud(0.2);
+  } else if (it === 'pit') {
+    c.spinT = 0; c.scT = 0; c.showerT = 0; c.turboT = Math.max(c.turboT, 1.0);
+    say(c, 'PIT STOP – ALL FIXED', '#2bd96b', 1.6); AU.beep(990, 0.1, 0.1);
+    for (let k = 0; k < 16; k++) parts.push({ x: c.x, y: c.y, alt: c.alt + 0.8, vx: c.vx + (Math.random() - .5) * 10, vy: c.vy + (Math.random() - .5) * 10, va: 2 + Math.random() * 4, life: 0.6, max: 0.6, size: 0.5, kind: 'pit' });
   }
   c.item = null; c.itemCount = 0;
 }
 function hitCar(c, h) {
-  c.spinT = h.type === 'oil' ? 1.3 : 1.0; c.spinDir = Math.random() < 0.5 ? -1 : 1;
-  const k = h.type === 'tyre' ? 0.45 : 0.7; c.vx *= k; c.vy *= k;
-  c.shake = 0.6; AU.thud(0.35);
-  say(c, h.type === 'oil' ? 'OIL SLICK!' : 'HIT BY A LOOSE TYRE!', '#ff6b6b', 1.5);
+  const t = h.type;
+  c.spinT = t === 'oil' ? 1.3 : t === 'wall' ? 0.8 : 1.0; c.spinDir = Math.random() < 0.5 ? -1 : 1;
+  const k = t === 'tyre' ? 0.45 : t === 'wall' ? 0.22 : 0.7; c.vx *= k; c.vy *= k;
+  c.shake = t === 'wall' ? 1 : 0.6; AU.thud(t === 'wall' ? 0.7 : 0.35);
+  say(c, t === 'oil' ? 'OIL SLICK!' : t === 'wall' ? 'BRICK WALL!' : 'HIT BY A LOOSE TYRE!', '#ff6b6b', 1.5);
   for (let k2 = 0; k2 < 10; k2++) spark(c.x, c.y, c.alt + 0.5);
+  if (t === 'wall') for (let k2 = 0; k2 < 26; k2++)
+    parts.push({ x: h.x, y: h.y, alt: h.alt + 0.3 + Math.random(), vx: (Math.random() - .5) * 16, vy: (Math.random() - .5) * 16, va: 3 + Math.random() * 7, life: 0.9, max: 0.9, size: 0.45, kind: 'brick' });
+}
+function hazardHits(h, c) {
+  if (h.type === 'wall') { const l = localOf(h, c); return Math.abs(l.along) < 2.6 && Math.abs(l.side) < 2.9; }
+  const r = h.type === 'oil' ? 2.2 : 2.4;
+  return (c.x - h.x) ** 2 + (c.y - h.y) ** 2 < r * r;
+}
+// Airborne after a jump ramp: ballistic flight, no steering or grip, then a thump on landing.
+function airStep(c, dt) {
+  c.px = c.x; c.py = c.y;
+  c.x += c.vx * dt; c.y += c.vy * dt;
+  c.airV -= G * dt; c.airAlt += c.airV * dt;
+  c.vf = c.vx * Math.cos(c.h) + c.vy * Math.sin(c.h);
+  c.pitch = clamp(c.airV * 0.035, -0.22, 0.22);
+  c.wheelRot += c.vf * dt / 0.36; c.slip = 0; c.boostOn = false;
+  if (!nearestGlobal(c.x, c.y)) { c.x = c.px; c.y = c.py; }
+  const gy = groundAt(c.x, c.y);
+  if (c.airAlt <= gy) {
+    c.air = false; c.airAlt = gy; c.shake = 0.7; AU.thud(0.45);
+    for (let k = 0; k < 12; k++) parts.push({ x: c.x, y: c.y, alt: gy + 0.3, vx: c.vx * 0.3 + (Math.random() - .5) * 6, vy: c.vy * 0.3 + (Math.random() - .5) * 6, va: 1 + Math.random(), life: 0.9, max: 0.9, size: 2, kind: 'smoke' });
+  }
 }
 function chaosCar(c, inp, dt) {           // per car, every physics step
   if (inp.boost && !c.prevBoost) useItem(c);
@@ -949,7 +1060,41 @@ function chaosCar(c, inp, dt) {           // per car, every physics step
     c.item = c.rollItem; c.itemCount = c.item === 'triple' ? 3 : 1;
     say(c, ITEM_NAMES[c.item], '#ffd23f', 1.4);
   }
+  if (c.air) return;
+  // drift turbo: hold the drift (throttle + brake + steer) – blue sparks after 1 s, orange after 2 s – and let go for a boost
+  if (c.spinT > 0) { c.drifting = false; c.driftT = 0; }
+  else if (c.driftOn) {
+    const was = c.driftT;
+    c.drifting = true; c.driftT += dt;
+    if (!c.cpu && ((was < 1 && c.driftT >= 1) || (was < 2 && c.driftT >= 2))) AU.beep(c.driftT >= 2 ? 1180 : 880, 0.06, 0.07);
+  } else if (c.drifting) {
+    if (c.driftT > 2) { c.turboT = Math.max(c.turboT, 1.8); say(c, 'SUPER DRIFT BOOST', '#ff8a3d', 1.1); AU.beep(1300, 0.12, 0.1); }
+    else if (c.driftT > 1) { c.turboT = Math.max(c.turboT, 1.0); say(c, 'DRIFT BOOST', '#5cd0ff', 1.0); AU.beep(1000, 0.1, 0.1); }
+    c.drifting = false; c.driftT = 0;
+  }
+  // boost pads
+  if (c.padT <= 0) for (const q of pads) {
+    if ((c.x - q.x) ** 2 + (c.y - q.y) ** 2 > 36) continue;
+    const l = localOf(q, c);
+    if (Math.abs(l.along) < 4 && Math.abs(l.side) < 2.6) {
+      c.turboT = Math.max(c.turboT, 1.0); c.padT = 1;
+      if (!c.cpu) AU.beep(1400, 0.08, 0.08);
+    }
+  }
+  // jump ramps: ride up the slope; leave the top fast enough and you fly
+  for (const r of ramps) {
+    if ((c.x - r.x) ** 2 + (c.y - r.y) ** 2 > 25) continue;
+    const l = localOf(r, c);
+    if (Math.abs(l.side) > 3.1 || l.along < -3 || l.along > 3) continue;
+    const lift = (l.along + 3) / 6 * RAMP_H, fwd = c.vx * Math.cos(r.h) + c.vy * Math.sin(r.h);
+    c.alt += lift; c.pitch = Math.atan(RAMP_H / 6);
+    if (l.along > 2 && fwd > 15) {
+      c.air = true; c.airAlt = c.alt; c.airV = clamp(fwd * 0.07, 3.5, 6.5);
+      if (!c.cpu) { say(c, 'AIRBORNE!', '#ffd23f', 0.9); AU.beep(700, 0.15, 0.08); }
+    }
+  }
 }
+const RAMP_H = 1.0;
 function chaosWorld(dt) {                 // boxes respawn, projectiles move, hazards hit cars
   for (const b of boxes) if (!b.active && (b.respawn -= dt) <= 0) b.active = true;
   for (const h of hazards) {
@@ -960,15 +1105,28 @@ function chaosWorld(dt) {                 // boxes respawn, projectiles move, ha
     } else if (h.type === 'sc') {
       const v = h.victim, p = sToPoint(v.s + 18, 0); h.x = p.x; h.y = p.y; h.alt = p.alt; h.h = p.h;
       if (v.scT <= 0) h.life = 0;
+    } else if (h.type === 'cloud') {
+      const v = h.victim; h.x = v.x; h.y = v.y; h.alt = v.alt + 7.5; h.h = v.h;
+      if (v.showerT <= 0) h.life = 0;
+      if (parts.length < 650) for (let k = 0; k < 3; k++) {
+        const a = Math.random() * 6.3, r = Math.random() * 2.6;
+        parts.push({ x: v.x + Math.cos(a) * r + v.vx * 0.15, y: v.y + Math.sin(a) * r + v.vy * 0.15, alt: h.alt - 0.8, vx: v.vx, vy: v.vy, va: -24, life: 0.3, max: 0.3, size: 0.22, kind: 'rain' });
+      }
     }
-    if (h.type !== 'oil' && h.type !== 'tyre') continue;
+    if (h.type !== 'oil' && h.type !== 'tyre' && h.type !== 'wall') continue;
     for (const c of cars) {
-      if (c.ghost > 0 || (c === h.owner && h.age < (h.type === 'oil' ? 1.5 : 0.5))) continue;
-      const r = h.type === 'oil' ? 2.2 : 2.4;
-      if ((c.x - h.x) ** 2 + (c.y - h.y) ** 2 < r * r) { hitCar(c, h); h.life = 0; break; }
+      if (c.ghost > 0 || c.air || (c === h.owner && h.age < (h.type === 'tyre' ? 0.5 : 1.5))) continue;
+      if (hazardHits(h, c)) { hitCar(c, h); h.life = 0; break; }
     }
   }
   hazards = hazards.filter(h => h.life > 0);
+  // the weather can change each time the leader starts a new lap
+  const lead = Math.max(...cars.map(c => c.lapsDone));
+  if (lead > weatherLap) {
+    weatherLap = lead;
+    if (lead < cfg.laps) { let w = rollWeather(false); if (w === weather) w = rollWeather(false); setWeather(w); }
+  }
+  if (wxMsgT > 0) wxMsgT -= dt;
 }
 // Ghost: your best valid hot lap on this track + handling, sampled every 0.05 s and kept in this browser.
 let ghost = null, recGhost = null, ghostShow = null, ghostReq = 0, recState = 'idle';
@@ -1041,8 +1199,8 @@ function startRace(rematch) {
     grid.forEach((c, slot) => placeCar(c, slot));
   }
   parts = []; finishOrder = []; resultsAt = 0;
-  hazards = []; boxes = [];
-  if (cfg.mode === 'chaos') placeBoxes();
+  hazards = []; boxes = []; pads = []; ramps = []; weather = 'dry'; weatherLap = 0; wxMsgT = 0;
+  if (cfg.mode === 'chaos') { placeBoxes(); placePads(); placeRamps(); weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
   session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
   simTime = 0; raceStart = 0;
   AU.setPans(solo);
@@ -1126,25 +1284,30 @@ function physics(c, inp, dt, locked) {
   let vf = c.vx * ch + c.vy * sh;
   const av = Math.abs(vf);
   const H = hd();
-  const aLat = G * (H.latA + H.latB * vf * vf) * surf.grip * (c.spinT > 0 ? 0.35 : 1);
+  const gm = gripMul(c);
+  // Chaos drift: throttle + brake together while steering → the brake is ignored, the car turns in
+  // harder and slides; how long you hold it decides the drift boost (see chaosCar)
+  const drift = !locked && isChaos() && !c.air && inp.throttle > 0.5 && inp.brake > 0.5 && Math.abs(c.steer) > 0.25 && vf > 12 && c.spinT <= 0;
+  c.driftOn = drift;
+  const aLat = G * (H.latA + H.latB * vf * vf) * surf.grip * gm * (c.spinT > 0 ? 0.35 : 1);
   const vv = Math.max(av, 5);
   const steerMax = Math.min(0.55, Math.atan(WB * aLat * H.steerK / (vv * vv)));
   c.delta = c.steer * steerMax;
-  if (!locked) c.h += vf * Math.tan(c.delta) / WB * dt / (1 + c.slip * 0.06);
+  if (!locked) c.h += vf * Math.tan(c.delta) / WB * dt / (1 + c.slip * 0.06) * (drift ? 1.25 : 1);
   if (!locked && c.spinT > 0) c.h += c.spinDir * 4.5 * dt * Math.min(1, c.spinT);   // spinning after oil / a tyre hit
   ch = Math.cos(c.h); sh = Math.sin(c.h);
   vf = c.vx * ch + c.vy * sh;
   let vl = -c.vx * sh + c.vy * ch;
 
   let thr = locked ? 0 : inp.throttle;
-  const brk = locked ? 0 : inp.brake;
+  const brk = locked || drift ? 0 : inp.brake;
   const slowing = c.slowT > 0 && !locked;
   if (slowing) { c.slowT -= dt; if (vf > c.slowV) thr = 0; }
   if (c.spinT > 0) thr *= 0.3;
   const scSlow = c.scT > 0 && vf > c.scV;
   if (scSlow) thr = 0;
   c.throttle = inp.throttle; c.brakeIn = brk;
-  const trac = G * (H.tracA + 0.0004 * vf * vf) * surf.grip;
+  const trac = G * (H.tracA + 0.0004 * vf * vf) * surf.grip * gm;
   c.boostOn = !locked && !isChaos() && inp.boost && thr > 0.2 && c.ers > 0.005 && vf > 3 && POWER / vf < trac;
   if (c.boostOn) c.ers = Math.max(0, c.ers - ERS_USE * dt);
   let ax = 0;
@@ -1155,7 +1318,7 @@ function physics(c, inp, dt, locked) {
   }
   if (brk > 0) {
     if (vf > 0.5) {
-      ax -= brk * G * (H.brkA + H.brkB * vf * vf) * surf.brake;
+      ax -= brk * G * (H.brkA + H.brkB * vf * vf) * surf.brake * (0.5 + 0.5 * gm);
       c.ers = Math.min(1, c.ers + ERS_REGEN * brk * dt * Math.min(1, vf / 30));
     } else if (thr < 0.1 && vf > -10) ax -= brk * 6;
   }
@@ -1172,11 +1335,11 @@ function physics(c, inp, dt, locked) {
   if (vf > 0) vf = Math.max(0, vf - r); else if (vf < 0) vf = Math.min(0, vf + r);
 
   const brakeUse = vf > 2 ? brk : 0;
-  const latAvail = aLat * (1 - 0.3 * brakeUse) * (thr > 0.8 && av < 22 ? 0.75 : 1);
+  const latAvail = aLat * (1 - 0.3 * brakeUse) * (thr > 0.8 && av < 22 ? 0.75 : 1) * (drift ? 0.9 : 1);
   c.slip = Math.abs(vl);
   const dv = latAvail * dt;
   if (Math.abs(vl) <= dv) vl = 0; else vl -= Math.sign(vl) * dv;
-  if (c.slip > 1.5) vf -= Math.sign(vf) * Math.min(Math.abs(vf), c.slip * 0.35 * dt);
+  if (c.slip > 1.5) vf -= Math.sign(vf) * Math.min(Math.abs(vf), c.slip * (drift ? 0.15 : 0.35) * dt);
 
   if (locked) { vf = 0; vl = 0; }
   c.vx = vf * ch - vl * sh; c.vy = vf * sh + vl * ch; c.vf = vf;
@@ -1224,7 +1387,7 @@ function trackLocal(c) {
 }
 
 function collideCars(a, b) {
-  if (a.ghost > 0 || b.ghost > 0) return;
+  if (a.ghost > 0 || b.ghost > 0 || a.air !== b.air) return;
   if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 > 64) return;
   const offs = [1.75, -1.6], R = 1.05;
   for (const oa of offs) for (const ob of offs) {
@@ -1274,11 +1437,11 @@ function step(dt) {
   }
   const inputs = cars.map((c, i) => c.cpu ? cpuInput(c) : readInput(i));
   cars.forEach((c, i) => {
-    physics(c, inputs[i], dt, locked);
+    if (c.air) airStep(c, dt); else physics(c, inputs[i], dt, locked);
     const s0 = c.s, s1 = trackLocal(c);
     let ds = s1 - s0; if (ds < -T.L / 2) ds += T.L; if (ds > T.L / 2) ds -= T.L;
     c.s = s1; c.prog += ds;
-    c.alt = groundAt(c.x, c.y);
+    c.alt = c.air ? c.airAlt : groundAt(c.x, c.y);
     if (state !== 'race') return;
     if (isChaos()) chaosCar(c, inputs[i], dt);
 
@@ -1345,6 +1508,7 @@ function step(dt) {
   cars.forEach(c => {
     if (c.ghost > 0) c.ghost -= dt; c.msgT -= dt; c.shake = Math.max(0, c.shake - dt * 2.5);
     if (c.turboT > 0) c.turboT -= dt; if (c.spinT > 0) c.spinT -= dt; if (c.scT > 0) c.scT -= dt;
+    if (c.showerT > 0) c.showerT -= dt; if (c.phantomT > 0) c.phantomT -= dt; if (c.padT > 0) c.padT -= dt;
   });
   if (isChaos() && state === 'race') chaosWorld(dt);
   // once every human has finished, don't wait forever for a CPU that's stuck or a lap down
@@ -1485,20 +1649,25 @@ function spawnFx(dt) {
     }
     if (c.turboT > 0 && Math.random() < dt * 60 && parts.length < 650)
       parts.push({ x: c.x - ch * 3, y: c.y - sh * 3, alt: c.alt + 0.5, vx: -ch * 8 + c.vx * 0.8 + (Math.random() - .5) * 3, vy: -sh * 8 + c.vy * 0.8 + (Math.random() - .5) * 3, va: 0.5, life: 0.3, max: 0.3, size: 0.8, kind: 'spark' });
+    if (c.drifting && c.driftT > 1 && !c.air && Math.random() < dt * 70 && parts.length < 650) {
+      const w = wl[Math.random() < .5 ? 0 : 1];
+      parts.push({ x: w.x, y: w.y, alt: c.alt + 0.25, vx: c.vx * 0.6 + (Math.random() - .5) * 7, vy: c.vy * 0.6 + (Math.random() - .5) * 7, va: 1 + Math.random() * 3, life: 0.25, max: 0.25, size: 0.4, kind: c.driftT > 2 ? 'dorange' : 'dblue' });
+    }
     if (c.boostOn && Math.random() < dt * 30 && parts.length < 650) {
       parts.push({ x: c.x - ch * 2.9, y: c.y - sh * 2.9, alt: c.alt + 0.55, vx: -ch * 4 + c.vx * 0.85, vy: -sh * 4 + c.vy * 0.85, va: 0, life: 0.25, max: 0.25, size: 0.6, kind: 'ers' });
     }
   });
 }
+const FIXED_SIZE = { spark: 1, ers: 1, rain: 1, dblue: 1, dorange: 1, brick: 1, pit: 1 };
 function updateParts(dt) {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     p.life -= dt;
     if (p.life <= 0) { parts.splice(i, 1); continue; }
     p.x += p.vx * dt; p.y += p.vy * dt; p.alt += p.va * dt;
-    if (p.kind === 'spark') p.va -= 15 * dt;
-    const damp = p.kind === 'spark' ? 2 : 3; p.vx *= Math.exp(-damp * dt); p.vy *= Math.exp(-damp * dt);
-    if (p.kind !== 'spark' && p.kind !== 'ers') p.size += dt * 3;
+    if (p.kind === 'spark' || p.kind === 'brick') p.va -= 15 * dt;
+    const damp = p.kind === 'rain' ? 0 : p.kind === 'spark' || p.kind === 'brick' ? 2 : 3; p.vx *= Math.exp(-damp * dt); p.vy *= Math.exp(-damp * dt);
+    if (!FIXED_SIZE[p.kind]) p.size += dt * 3;
   }
 }
 
@@ -1807,7 +1976,8 @@ function buildGfx() {
     fragmentShader: 'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard; gl_FragColor=vec4(vC, vA*(1.0-d*2.0)); }',
   });
   const points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; points.userData.keep = true; keepers.push(points);
-  const PC = { smoke: [0.86, 0.86, 0.86, 0.35], dust: [0.62, 0.52, 0.34, 0.45], grit: [0.7, 0.7, 0.7, 0.35], spark: [1, 0.8, 0.35, 1], ers: [0.4, 0.8, 1, 0.8] };
+  const PC = { smoke: [0.86, 0.86, 0.86, 0.35], dust: [0.62, 0.52, 0.34, 0.45], grit: [0.7, 0.7, 0.7, 0.35], spark: [1, 0.8, 0.35, 1], ers: [0.4, 0.8, 1, 0.8],
+    rain: [0.7, 0.82, 1, 0.75], dblue: [0.35, 0.75, 1, 1], dorange: [1, 0.55, 0.12, 1], brick: [0.7, 0.24, 0.14, 1], pit: [0.2, 0.9, 0.45, 0.9] };
 
   // F1 car model
   const shTex = canvasTex(64, 64, (c2, w, h) => { const gr = c2.createRadialGradient(32, 32, 4, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); c2.fillStyle = gr; c2.fillRect(0, 0, w, h); });
@@ -1868,7 +2038,56 @@ function buildGfx() {
   const demo = { s: 0, cam: { station: -1, look: V(0, 0, 0), fov: 30, snap: true, pos: V(0, 0, 0), hd: 0 } };
 
   // ---- chaos objects
-  let chaosObjs = [], hazMesh = new Map(), boxGeo = null, boxMat = null;
+  let chaosObjs = [], hazMesh = new Map(), boxGeo = null, boxMat = null, padTex = null, padMat = null, rampMats = null, brickMat = null;
+  // a flat strip lying on the terrain, centred on (x, y) and facing heading h
+  function groundStrip(x, y, h, len, wid, mat, lift) {
+    const ch = Math.cos(h), sh = Math.sin(h), pos = [], uv = [], idx = [], NA = 6, NB = 2;
+    for (let a = 0; a <= NA; a++) for (let b = 0; b <= NB; b++) {
+      const u = a / NA, v = b / NB, al = (u - 0.5) * len, sd = (v - 0.5) * wid;
+      const px = x + ch * al - sh * sd, pz = y + sh * al + ch * sd;
+      pos.push(px, groundAt(px, pz) + lift, pz); uv.push(u, v);
+    }
+    for (let a = 0; a < NA; a++) for (let b = 0; b < NB; b++) { const i = a * (NB + 1) + b; idx.push(i, i + 1, i + NB + 1, i + 1, i + NB + 2, i + NB + 1); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+    return new THREE.Mesh(g, mat);
+  }
+  function chaosMats() {
+    padTex = canvasTex(128, 128, (g, w, h) => {
+      g.fillStyle = '#0b4ccc'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#8af3ff'; g.lineWidth = 22; g.lineJoin = 'miter'; g.lineCap = 'butt';
+      g.beginPath(); g.moveTo(22, 10); g.lineTo(96, h / 2); g.lineTo(22, h - 10); g.stroke();
+    }, true);
+    padTex.repeat.set(3, 1);
+    padMat = new THREE.MeshBasicMaterial({ map: padTex, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const stripes = canvasTex(128, 128, (g, w, h) => {
+      g.fillStyle = '#ffd400'; g.fillRect(0, 0, w, h); g.fillStyle = '#111';
+      for (let k = -2; k < 4; k++) { g.beginPath(); g.moveTo(k * 48, 0); g.lineTo(k * 48 + 24, 0); g.lineTo(k * 48 + 24 + h, h); g.lineTo(k * 48 + h, h); g.closePath(); g.fill(); }
+    }, true);
+    stripes.repeat.set(1, 2);
+    rampMats = { top: new THREE.MeshLambertMaterial({ map: stripes }), dark: new THREE.MeshLambertMaterial({ color: '#26272b' }) };
+    const bricks = canvasTex(256, 72, (g, w, h) => {
+      g.fillStyle = '#d8cfc0'; g.fillRect(0, 0, w, h);
+      for (let r = 0; r < 4; r++) for (let k = -1; k < 9; k++) {
+        g.fillStyle = ['#b3392a', '#a33224', '#c2442f'][(r + k + 9) % 3];
+        g.fillRect(k * 32 + (r % 2) * 16 + 2, r * 18 + 2, 28, 14);
+      }
+    });
+    brickMat = new THREE.MeshLambertMaterial({ map: bricks });
+  }
+  function rampMesh(r) {
+    const g = new THREE.Group(), len = Math.hypot(6, RAMP_H);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.22, 6), rampMats.top);
+    top.position.set(0, RAMP_H / 2 - 0.06, 0); top.rotation.z = Math.atan2(RAMP_H, 6); g.add(top);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.3, RAMP_H, 6), rampMats.dark); back.position.set(2.85, RAMP_H / 2 - 0.05, 0); g.add(back);
+    for (const z of [-2.9, 2.9]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(5.6, RAMP_H * 0.5, 0.15), rampMats.dark);
+      side.position.set(0.3, RAMP_H * 0.25, z); side.rotation.z = Math.atan2(RAMP_H, 6) * 0.9; g.add(side);
+    }
+    g.rotation.order = 'YZX'; g.rotation.y = -r.h; g.rotation.z = Math.atan(T.GR[r.i]);
+    g.position.set(r.x, groundAt(r.x, r.y), r.y);
+    return g;
+  }
   function chaosClear() {
     chaosObjs.forEach(o => scene.remove(o)); chaosObjs = [];
     hazMesh.forEach(m => scene.remove(m)); hazMesh = new Map();
@@ -1885,6 +2104,9 @@ function buildGfx() {
       boxMat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0.88, emissive: new THREE.Color('#5a3000') });
     }
     for (const b of boxes) { const m = new THREE.Mesh(boxGeo, boxMat); b.mesh = m; scene.add(m); chaosObjs.push(m); }
+    if (!padMat) chaosMats();
+    for (const q of pads) { const m = groundStrip(q.x, q.y, q.h, 8, 5, padMat, 0.07); scene.add(m); chaosObjs.push(m); }
+    for (const r of ramps) { const m = rampMesh(r); scene.add(m); chaosObjs.push(m); }
   }
   function hazardMesh(h) {
     if (h.type === 'oil') {
@@ -1901,7 +2123,56 @@ function buildGfx() {
       bar.position.set(0.1, 1.2, 0); m.body.add(bar); m.g.userData.bar = bar;
       scene.remove(m.g); return m.g;
     }
+    if (h.type === 'wall') {
+      const g = new THREE.Group(), m = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, 4.4), brickMat);
+      m.position.y = 0.6; g.add(m); return g;
+    }
+    if (h.type === 'cloud') {
+      const g = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ color: '#aab3bd', emissive: new THREE.Color('#3a4048'), transparent: true, opacity: 0.9 });
+      for (const [x, y, z, r] of [[0, 0, 0, 1.3], [1.2, -0.2, 0.5, 1.0], [-1.2, -0.2, -0.3, 1.05], [0.3, 0.4, -0.9, 0.9], [-0.4, 0.1, 1.0, 0.9]]) {
+        const sp = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), mat); sp.position.set(x, y, z); g.add(sp);
+      }
+      return g;
+    }
     return new THREE.Group();
+  }
+  // weather: rain streaks or glitter in a box that wraps around the camera, plus sky and fog colours
+  const WXN = 2400, wxPos = new Float32Array(WXN * 3), wxSeed = new Float32Array(WXN);
+  for (let k = 0; k < WXN; k++) { wxPos[k * 3] = Math.random() * 70; wxPos[k * 3 + 1] = Math.random() * 36; wxPos[k * 3 + 2] = Math.random() * 70; wxSeed[k] = Math.random(); }
+  const wxGeo = new THREE.BufferGeometry();
+  wxGeo.setAttribute('position', new THREE.BufferAttribute(wxPos, 3)); wxGeo.setAttribute('seed', new THREE.BufferAttribute(wxSeed, 1));
+  const wxMat = new THREE.ShaderMaterial({
+    uniforms: { cpos: { value: V(0, 0, 0) }, time: { value: 0 }, scale: { value: 500 }, amt: { value: 0 }, glitter: { value: 0 } },
+    transparent: true, depthWrite: false,
+    vertexShader: 'attribute float seed; uniform vec3 cpos; uniform float time, scale, amt, glitter; varying vec3 vC; varying float vA;' +
+      'void main(){ vec3 b=vec3(70.0,36.0,70.0); vec3 p=position;' +
+      ' p.y -= time*mix(26.0,3.0,glitter)*(0.8+0.4*seed); p.x += glitter*sin(time*1.3+seed*40.0)*2.0;' +
+      ' vec3 w=cpos+mod(p-cpos,b)-b*0.5; vec4 mv=modelViewMatrix*vec4(w,1.0);' +
+      ' gl_PointSize=clamp(mix(0.7,0.32,glitter)*scale/-mv.z, 1.0, 40.0); gl_Position=projectionMatrix*mv;' +
+      ' vC=mix(vec3(0.75,0.85,1.0), 0.55+0.45*cos(6.283*(seed+vec3(0.0,0.33,0.67))), glitter);' +
+      ' vA=amt*mix(0.5, 0.55+0.45*sin(time*9.0+seed*60.0), glitter)*clamp((-mv.z-2.0)/8.0, 0.0, 1.0); }',
+    fragmentShader: 'uniform float glitter; varying vec3 vC; varying float vA;' +
+      'void main(){ vec2 q=gl_PointCoord-0.5; float a;' +
+      ' if (glitter<0.5) { if (abs(q.x)>0.05) discard; a=1.0-abs(q.y)*2.0; } else { float d=length(q); if (d>0.5) discard; a=1.0-d*2.0; }' +
+      ' gl_FragColor=vec4(vC, vA*a); }',
+  });
+  const wxPoints = new THREE.Points(wxGeo, wxMat); wxPoints.frustumCulled = false; wxPoints.userData.keep = true; keepers.push(wxPoints);
+  if (scene) scene.add(wxPoints);
+  const WX_SKY = { rain: ['#56606b', '#6f7a85', 0.45], glitter: ['#7a4fa8', '#c08fd8', 0.7] };
+  let wxShown = 'dry', wxAmt = 0;
+  const cA = new THREE.Color(), cB = new THREE.Color();
+  function syncWeather(dt) {
+    const want = state !== 'menu' && isChaos() ? weather : 'dry';
+    if (want !== wxShown) { wxAmt -= dt / 1.2; if (wxAmt <= 0) { wxAmt = 0; wxShown = want; } }
+    else if (wxShown !== 'dry') wxAmt = Math.min(1, wxAmt + dt / 1.5);
+    const th = TRACK.theme, sk = WX_SKY[wxShown], a = sk ? wxAmt : 0;
+    scene.background.set(th.sky); scene.fog.color.set(th.fog);
+    if (a > 0) { scene.background.lerp(cA.set(sk[0]), a); scene.fog.color.lerp(cB.set(sk[1]), a); }
+    scene.fog.far = th.fogFar * (1 - a * (1 - (sk ? sk[2] : 1)));
+    scene.fog.near = th.fogNear * (1 - a * 0.6);
+    wxPoints.visible = a > 0.01;
+    wxMat.uniforms.amt.value = a; wxMat.uniforms.glitter.value = wxShown === 'glitter' ? 1 : 0;
+    wxMat.uniforms.time.value = performance.now() / 1000;
   }
   function syncChaos() {
     const t = performance.now() / 1000;
@@ -1910,6 +2181,7 @@ function buildGfx() {
       b.mesh.position.set(b.x, b.alt + 1.4 + Math.sin(t * 3 + b.spin) * 0.18, b.y);
       b.mesh.rotation.set(0.35, t * 1.8 + b.spin, 0.2);
     }
+    if (padTex) padTex.offset.x = -(t * 1.6 % 1);
     const alive = new Set(hazards);
     hazMesh.forEach((m, h) => { if (!alive.has(h)) { scene.remove(m); hazMesh.delete(h); } });
     for (const h of hazards) {
@@ -1954,7 +2226,12 @@ function buildGfx() {
       m.fronts.forEach(f => { f.rotation.y = -c.delta * 1.2; });
       m.flapPivot.rotation.z = c.drs ? 0.55 : 0;
       m.light.material.color.set(c.brakeIn > 0.1 || (c.boostOn && Math.floor(simTime * 8) % 2) ? '#ff2020' : '#330000');
-      m.g.visible = !(c.ghost > 0 && Math.floor(simTime * 12) % 2);
+      const ph = c.phantomT > 0;
+      m.g.visible = ph || !(c.ghost > 0 && Math.floor(simTime * 12) % 2);
+      if (m.phantom !== ph) {
+        m.phantom = ph;
+        m.g.traverse(o => { if (o.isMesh && o.material && o.material.map !== shTex) { o.material.transparent = ph; o.material.opacity = ph ? 0.35 : 1; o.material.depthWrite = !ph; } });
+      }
     });
     if (ghostMesh) {
       const c = cars[0], g = ghostShow;
@@ -2027,6 +2304,7 @@ function buildGfx() {
   function render(dt, vps) {
     renderer.setScissorTest(true);
     const pr = renderer.getPixelRatio();
+    syncWeather(dt);
     if (state === 'menu') {
       demo.s = (demo.s + dt * 46) % T.L;
       const p = sToPoint(demo.s, 0);
@@ -2055,7 +2333,8 @@ function buildGfx() {
       cam.updateProjectionMatrix();
       const y = H - vp.y - vp.h;
       renderer.setViewport(vp.x, y, vp.w, vp.h); renderer.setScissor(vp.x, y, vp.w, vp.h);
-      pMat.uniforms.scale.value = vp.h * pr / (2 * Math.tan(cam.fov * Math.PI / 360));
+      pMat.uniforms.scale.value = wxMat.uniforms.scale.value = vp.h * pr / (2 * Math.tan(cam.fov * Math.PI / 360));
+      wxMat.uniforms.cpos.value.copy(cam.position);
       renderer.render(scene, cam);
       cams.push(cam);
     });
@@ -2182,8 +2461,23 @@ function drawHud(vp, c) {
     if (shown) drawItemIcon(shown, ix + 43, iy + 40, 26);
     else txt('?', ix + 43, iy + 54, F(800, 34), 'rgba(255,255,255,.18)', 'center');
     txt(c.rollT > 0 ? '…' : c.item ? (c.itemCount > 1 ? c.itemCount + '× ' : '') + ITEM_SHORT[c.item] : 'ITEM', ix + 43, iy + 86, F(800, 10), c.item ? '#ffd23f' : '#9aa1ab', 'center');
-    if (c.turboT > 0) txt('TURBO', cx - 70, by - 14, F(800, 12), '#ff8a3d', 'center');
-    if (c.scT > 0 && Math.floor(simTime * 4) % 2) txt('SAFETY CAR', cx - 70, by - 14, F(800, 12), '#ffd23f', 'center');
+    let lab = null, lc = '#ff8a3d';
+    if (c.turboT > 0) lab = 'TURBO';
+    if (c.drifting && c.driftT > 1) { lab = c.driftT > 2 ? 'DRIFT ●●' : 'DRIFT ●'; lc = c.driftT > 2 ? '#ff8a3d' : '#5cd0ff'; }
+    if (c.air) { lab = 'AIRBORNE'; lc = '#ffd23f'; }
+    if (c.phantomT > 0) { lab = 'PHANTOM'; lc = '#c9a7ff'; }
+    if (c.showerT > 0) { lab = 'SHOWER'; lc = '#7fc4ff'; }
+    if (c.scT > 0 && Math.floor(simTime * 4) % 2) { lab = 'SAFETY CAR'; lc = '#ffd23f'; }
+    if (lab) txt(lab, cx - 70, by - 14, F(800, 12), lc, 'center');
+    if (weather !== 'dry') txt(WEATHER[weather][2], ix + 43, iy - 8, F(800, 12), WEATHER[weather][1], 'center');
+    if (wxMsgT > 0) {
+      const m = WEATHER[weather], wy = state === 'countdown' || simTime - raceStart < 1.3 ? Math.max(h * 0.14, 170) : h * 0.14;   // below the start lights
+      ctx.globalAlpha = clamp(wxMsgT * 1.5, 0, 1);
+      ctx.font = F(800, 20); const mw = ctx.measureText(m[0]).width + 34;
+      panel(w / 2 - mw / 2, wy - 22, mw, 34, 8);
+      txt(m[0], w / 2, wy + 2, F(800, 20), m[1], 'center');
+      ctx.globalAlpha = 1;
+    }
   } else {
     txt('ERS', cx - 136, by - 14, F(700, 11), c.boostOn ? '#5cd0ff' : '#9aa1ab');
     ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(cx - 108, by - 22, 120, 9);
@@ -2234,6 +2528,28 @@ function drawItemIcon(it, x, y, r) {
     ctx.fillStyle = '#1b1b1b'; ctx.beginPath(); ctx.roundRect(-r * 0.45, -r * 0.5, r * 0.9, r * 0.35, r * 0.08); ctx.fill();
     ctx.fillStyle = Math.floor(simTime * 6) % 2 ? '#ff8a00' : '#3d8bff'; ctx.fillRect(-r * 0.35, -r * 0.68, r * 0.7, r * 0.16);
     ctx.fillStyle = '#111'; for (const sx of [-0.55, 0.55]) { ctx.beginPath(); ctx.arc(sx * r, r * 0.42, r * 0.2, 0, 7); ctx.fill(); }
+  } else if (it === 'shower') {
+    ctx.strokeStyle = '#5cb8ff'; ctx.lineWidth = r * 0.09; ctx.lineCap = 'round';
+    for (const sx of [-0.45, 0, 0.45]) { ctx.beginPath(); ctx.moveTo(sx * r, r * 0.25); ctx.lineTo(sx * r - r * 0.12, r * 0.75); ctx.stroke(); }
+    ctx.fillStyle = '#8d97a3';
+    for (const [x, y, rr] of [[-0.45, -0.05, 0.38], [0.05, -0.3, 0.48], [0.5, -0.02, 0.36]]) { ctx.beginPath(); ctx.arc(x * r, y * r, rr * r, 0, 7); ctx.fill(); }
+    ctx.fillRect(-r * 0.8, -r * 0.05, r * 1.65, r * 0.34);
+  } else if (it === 'phantom') {
+    ctx.fillStyle = 'rgba(214,196,255,.92)'; ctx.beginPath();
+    ctx.arc(0, -r * 0.15, r * 0.62, Math.PI, 0); ctx.lineTo(r * 0.62, r * 0.7);
+    for (let k = 0; k < 4; k++) { const x1 = r * 0.62 - (k + 0.5) * r * 0.31, x2 = r * 0.62 - (k + 1) * r * 0.31; ctx.quadraticCurveTo(x1, r * (k % 2 ? 0.75 : 0.45), x2, r * 0.6); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2a1650'; for (const sx of [-0.22, 0.22]) { ctx.beginPath(); ctx.ellipse(sx * r, -r * 0.15, r * 0.1, r * 0.16, 0, 0, 7); ctx.fill(); }
+  } else if (it === 'wall') {
+    ctx.fillStyle = '#e5dccd'; ctx.fillRect(-r * 0.9, -r * 0.6, r * 1.8, r * 1.2);
+    for (let row = 0; row < 4; row++) for (let k = -1; k < 4; k++) {
+      const x = -r * 0.9 + k * r * 0.6 + (row % 2) * r * 0.3, y = -r * 0.6 + row * r * 0.3;
+      const x0 = Math.max(x + r * 0.03, -r * 0.9), x1 = Math.min(x + r * 0.57, r * 0.9);
+      if (x1 > x0) { ctx.fillStyle = (row + k) % 2 ? '#b8402c' : '#a63223'; ctx.fillRect(x0, y + r * 0.03, x1 - x0, r * 0.24); }
+    }
+  } else if (it === 'pit') {
+    ctx.fillStyle = '#1fae55'; ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(-r * 0.5, -r * 0.14, r, r * 0.28); ctx.fillRect(-r * 0.14, -r * 0.5, r * 0.28, r);
   }
   ctx.restore();
 }
@@ -2511,7 +2827,7 @@ function refreshMenu() {
   document.getElementById('lapsOpt').style.display = hot ? 'none' : '';
   document.getElementById('ghostOpt').style.display = hot ? '' : 'none';
   document.getElementById('ghostInfo').innerHTML = chaos
-    ? '🎲 <b>Chaos</b>: hit the <span style="color:#ffb347">? boxes</span> for Turbo, Oil, Tyre or Safety Car and fire it with your boost key. No ERS, DRS or penalties; laps don\'t count for records.'
+    ? '🎲 <b>Chaos</b>: hit the <span style="color:#ffb347">? boxes</span> for items and fire them with your boost key. Boost pads, jump ramps, weather, and drift boosts (hold throttle + brake while steering). No ERS or DRS; laps don\'t count for records.'
     : hot
     ? '👻 <b>Ghost</b>: a see-through car replays the <span style="color:#ffc83d">track record</span> (from the online leaderboard) or <span style="color:#4fc8ff">your own best lap</span>. It starts when you cross the start line; <kbd>G</kbd> switches it while driving.'
     : '👻 Want to race a ghost of the track record? Choose <b>Players 1</b> → <b>Mode Hot lap</b>.';
