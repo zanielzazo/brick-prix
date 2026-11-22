@@ -383,7 +383,7 @@ const TRACKS = {
     raw: GRAZ_RAW, startLine: [31.2, -12.6], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,   // raced right→left on the main straight (the way it's drawn in OSM)
     turnNames: { first: 'Pushback', middle: 'Taxiway', tightest: 'Turnaround', last: 'Final Approach' },
     drsText: 'no DRS on the kart track', dims: { half: 3.1, kerb: 3.8, runoff: 4.2, wall: 7, sp: 1 },     // ~6 m of asphalt, grass and tyres between sections
-    brand: true, planes: true, schlossberg: 560,   // metres straight ahead of the start line          // Aeroficial Intelligence colours and ads; Graz Airport is next door
+    brand: true, planes: true, leisure: true, schlossberg: 560,   // metres straight ahead of the start line          // Aeroficial Intelligence colours and ads; Graz Airport is next door
     theme: { sky: '#9fc6ec', fog: '#c8d9e8', fogNear: 300, fogFar: 1700, hemiGround: '#55683a', grass: ['#4d8a3a', '#55923f'], outerNear: '#5c8a42', outerFar: '#8c8c56', ground: '#6c7d45', trees: 'broadleaf', treeCount: 150, hills: 0, bumps: 0.3, margin: 260,
       kerb: [AERO.teal, AERO.navy], tyres: [AERO.navy, AERO.teal, '#f4f4f4'], gantry: AERO.navy },
   },
@@ -721,11 +721,25 @@ function groundAt(x, z) {
 }
 
 // trees + TV camera stations
+// Graz scenery spots around the track: ski mountain (NW), cross-country trail (NE), frozen lake (E),
+// football pitch (S) and the Schlossberg straight ahead of the grid. Positions in track coordinates.
+function leisureSpots() {
+  const cx = (T.minX + T.maxX) / 2, cy = (T.minY + T.maxY) / 2, s0 = sToPoint(0, 0), h0 = Math.atan2(T.TY[s0.i], T.TX[s0.i]);
+  const sp = { c: [cx, cy], ski: [cx - 300, cy - 400], xc: [cx + 175, cy - 150], lake: [cx + 165, cy + 75], foot: [cx + 5, cy + 150] };
+  if (TRACK.schlossberg) sp.schloss = [s0.x + Math.cos(h0) * TRACK.schlossberg, s0.y + Math.sin(h0) * TRACK.schlossberg];
+  sp.zones = TRACK.leisure ? [[sp.ski, 200], [sp.xc, 140], [sp.lake, 95], [sp.foot, 95]] : [];
+  sp.views = TRACK.leisure ? [sp.xc, sp.lake, sp.foot] : [];        // keep the view from the track to these clear of trees
+  if (sp.schloss) sp.zones.push([sp.schloss, 165]);
+  return sp;
+}
 function makeTrees() {
   const rnd = mulberry(7), trees = [], max = TRACK.theme.treeCount;
+  const spots = TRACK.leisure || TRACK.schlossberg ? leisureSpots() : null, zones = spots ? spots.zones : [], views = spots ? spots.views : [];
   for (let n = 0; n < max * 9 && trees.length < max; n++) {
     const x = T.minX - 330 + rnd() * (T.maxX - T.minX + 660), y = T.minY - 330 + rnd() * (T.maxY - T.minY + 660);
-    if (nearestGlobal(x, y)) continue;
+    if (nearestGlobal(x, y) || zones.some(([[zx, zy], r]) => (x - zx) ** 2 + (y - zy) ** 2 < r * r)) continue;
+    if (views.some(([vx, vy]) => { const ux = vx - spots.c[0], uy = vy - spots.c[1], t = clamp(((x - spots.c[0]) * ux + (y - spots.c[1]) * uy) / (ux * ux + uy * uy), 0, 1);
+      return Math.hypot(x - spots.c[0] - ux * t, y - spots.c[1] - uy * t) < 45; })) continue;
     trees.push({ x, y, r: 2.5 + rnd() * 3.5, t: rnd() });
   }
   return trees;
@@ -2372,6 +2386,7 @@ function buildGfx() {
   for (const k of keepers) scene.add(k);
   carMeshes = []; ghostMesh = null; chaosObjs = []; hazMesh = new Map(); skidHead = 0; skidCount = 0; skidGeo.setDrawRange(0, 0);
   planes = []; planeT = 1;
+  leisure = TRACK.leisure ? buildLeisure() : null;
   demo.s = 0; demo.cam.station = -1; demo.cam.snap = true;
   }
 
@@ -2649,6 +2664,216 @@ function buildGfx() {
     planes = planes.filter(p => { if (p.s < p.S1) return true; dropPlane(p); return false; });
   }
 
+  // ---- Graz winter & sports scenery, all animated: skiers and a chairlift on a snowy mountain,
+  // cross-country skiers on a trail, skaters on a frozen lake, and a football match (a Graz derby)
+  let leisure = null;
+  function buildLeisure() {
+    const sp = leisureSpots(), anim = [], mats = new Map(), rr = mulberry(41);
+    const M = c => { if (!mats.has(c)) mats.set(c, new THREE.MeshLambertMaterial({ color: c })); return mats.get(c); };
+    const G = { leg: new THREE.BoxGeometry(0.2, 0.82, 0.24), body: new THREE.BoxGeometry(0.5, 0.72, 0.34), head: new THREE.SphereGeometry(0.19, 8, 6),
+      arm: new THREE.BoxGeometry(0.14, 0.64, 0.14), ski: new THREE.BoxGeometry(1.8, 0.05, 0.11), pole: new THREE.CylinderGeometry(0.03, 0.03, 1.3, 4) };
+    // a little person facing +x; legs/arms are pivots so they can swing
+    const person = (parent, shirt, o = {}) => {
+      const g = new THREE.Group(), legs = [], arms = [];
+      for (const z of [-0.12, 0.12]) { const pv = new THREE.Group(); pv.position.set(0, 0.82, z); const l = new THREE.Mesh(G.leg, M(o.pants || '#23272e')); l.position.y = -0.41; pv.add(l); g.add(pv); legs.push(pv); }
+      const b = new THREE.Mesh(G.body, M(shirt)); b.position.y = 1.18; g.add(b);
+      const h = new THREE.Mesh(G.head, M(o.hat || '#e8c3a0')); h.position.y = 1.73; g.add(h);
+      for (const z of [-0.33, 0.33]) {
+        const pv = new THREE.Group(); pv.position.set(0, 1.48, z); const a = new THREE.Mesh(G.arm, M(o.sleeve || shirt)); a.position.y = -0.31; pv.add(a);
+        if (o.poles) { const pl = new THREE.Mesh(G.pole, M('#2b2b2b')); pl.position.set(0.05, -0.72, 0); pv.add(pl); }
+        g.add(pv); arms.push(pv);
+      }
+      if (o.skis) for (const z of [-0.12, 0.12]) { const sk = new THREE.Mesh(G.ski, M(o.skis)); sk.position.set(0.25, 0.03, z); g.add(sk); }
+      g.userData = { legs, arms }; g.scale.setScalar(o.scale || 2.4); g.rotation.order = 'YZX'; parent.add(g); return g;
+    };
+    const swing = (g, ph, amp) => { const u = g.userData; u.legs[0].rotation.z = Math.sin(ph) * amp; u.legs[1].rotation.z = -Math.sin(ph) * amp; u.arms[0].rotation.z = -Math.sin(ph) * amp * 0.9; u.arms[1].rotation.z = Math.sin(ph) * amp * 0.9; };
+    const JACKETS = ['#e63946', '#1d6fb8', '#ffb703', '#2a9d8f', '#7b2cbf', '#f15bb5', '#fb8500', '#0f4c5c', '#43aa8b'];
+    const [cx, cz] = sp.c;
+
+    // --- ski mountain with a piste on the side facing the track, skiers zig-zagging down and a chairlift
+    {
+      const [mx, mz] = sp.ski, R = 175, Hm = 165, y0 = terrainHeight(mx, mz) - 5, face = Math.atan2(cz - mz, cx - mx), lift = face - 0.62;
+      const geo = new THREE.ConeGeometry(R, Hm, 48, 10), pos = geo.attributes.position, col = [];
+      const dAng = a => { let d = a - face; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+      for (let k = 0; k < pos.count; k++) {
+        const x = pos.getX(k), y = pos.getY(k) + Hm / 2, z = pos.getZ(k), a = Math.atan2(z, x), d = dAng(a), t = y / Hm, piste = d > -0.8 && d < 0.45;
+        if (!piste && y > 1 && y < Hm - 2) { const j = 1 + 0.06 * Math.sin(a * 5 + y * 0.07) * Math.cos(a * 3 - y * 0.05); pos.setX(k, x * j); pos.setZ(k, z * j); }
+        const c = new THREE.Color(piste || t > 0.45 ? '#f3f6fa' : t > 0.3 ? '#a6ae9f' : '#3d6a34'); col.push(c.r, c.g, c.b);
+      }
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
+      const mtn = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })); mtn.position.set(mx, y0 + Hm / 2, mz); scene.add(mtn);
+      const surf = (phi, y, out = 0.6) => { const r = R * (1 - y / Hm) + out; return new THREE.Vector3(mx + Math.cos(phi) * r, y0 + y, mz + Math.sin(phi) * r); };
+      const slope = Math.atan(Hm / R);
+      const skiers = [];
+      for (let k = 0; k < 9; k++) skiers.push({ g: person(scene, JACKETS[k % JACKETS.length], { skis: k % 2 ? '#e63946' : '#111', poles: true, hat: JACKETS[(k + 4) % JACKETS.length], pants: '#1b1f2a' }), s: k / 9, v: 0.035 + rr() * 0.025, ph: rr() * 6, w: 0.18 + rr() * 0.12 });
+      anim.push(dt => {
+        for (const sk of skiers) {
+          sk.s += sk.v * dt; if (sk.s > 1) sk.s -= 1;
+          const at = s => surf(face + sk.w * Math.sin(s * Math.PI * 7 + sk.ph), Hm * 0.8 * (1 - s) + 1, 1.2);
+          const a = at(sk.s), b = at(sk.s + 0.004);
+          sk.g.position.copy(a); sk.g.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+          sk.g.rotation.z = -slope * 0.45; sk.g.rotation.x = Math.cos(sk.s * Math.PI * 7 + sk.ph) * 0.35;
+        }
+      });
+      // chairlift: towers, two cables, chairs going up (with skiers) and coming down empty
+      const A = surf(lift, 4, 0), B = surf(lift, Hm * 0.8, 0), up = new THREE.Vector3(0, 9, 0);
+      const dir = B.clone().sub(A), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(2.2);
+      const lines = [[A.clone().add(up).add(side), B.clone().add(up).add(side)], [B.clone().add(up).sub(side), A.clone().add(up).sub(side)]];
+      for (const [a, b] of lines) scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: '#222' })));
+      for (let k = 0; k <= 6; k++) {
+        const t = k / 6, base = surf(lift, 4 + (Hm * 0.8 - 4) * t, 0), top = A.clone().lerp(B, t).add(up);
+        const tw = new THREE.Mesh(new THREE.BoxGeometry(0.8, top.y - base.y + 1, 0.8), M('#6b7280')); tw.position.set(base.x, (top.y + base.y) / 2, base.z); scene.add(tw);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 5.6), M('#6b7280')); arm.position.copy(top); arm.rotation.y = -Math.atan2(dir.z, dir.x); scene.add(arm);
+      }
+      const chairs = [];
+      for (let k = 0; k < 20; k++) {
+        const g = new THREE.Group(), seat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 2.2), M('#2f3640')), hang = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.4, 0.12), M('#2f3640'));
+        seat.position.y = -2.4; hang.position.y = -1.2; g.add(seat, hang);
+        const upLine = k % 2 === 0;
+        if (upLine) { const rider = person(g, JACKETS[k % JACKETS.length], { skis: '#111', hat: '#ffb703', scale: 1 }); rider.position.set(0, -2.35, 0); rider.userData.legs.forEach(l => l.rotation.z = 1.4); }
+        g.scale.setScalar(2.2); scene.add(g); chairs.push({ g, t: (k >> 1) / 10, upLine });
+      }
+      anim.push(dt => {
+        for (const c of chairs) {
+          c.t += dt * 0.012; if (c.t > 1) c.t -= 1;
+          const [a, b] = lines[c.upLine ? 0 : 1]; c.g.position.copy(a).lerp(b, c.t); c.g.rotation.y = -Math.atan2(dir.z, dir.x);
+        }
+      });
+    }
+
+    // --- cross-country trail: a snowy meadow with a double track and skiers striding round it
+    {
+      const [x0, z0] = sp.xc, grp = new THREE.Group(); grp.position.set(x0, terrainHeight(x0, z0) + 2.2, z0); scene.add(grp);
+      const bank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.06, 2.6, 48), M('#e9eef4')); bank.scale.set(125, 1, 80); bank.position.y = -1.3; grp.add(bank);   // raised snow bank
+      const flat = (geo, c, sx, sz, y) => { const m = new THREE.Mesh(geo, M(c)); m.rotation.x = -Math.PI / 2; m.scale.set(sx, sz, 1); m.position.y = y; grp.add(m); return m; };
+      flat(new THREE.CircleGeometry(1, 48), '#f2f5f9', 125, 80, 0);
+      flat(new THREE.RingGeometry(0.985, 1, 96), '#b8c4d3', 93, 53, 0.05); flat(new THREE.RingGeometry(0.985, 1, 96), '#b8c4d3', 96, 56, 0.05);
+      for (let k = 0; k < 14; k++) {      // snowy pines around the meadow
+        const a = rr() * Math.PI * 2, d = 0.82 + rr() * 0.12, t = new THREE.Group(); t.position.set(Math.cos(a) * 125 * d, 0, Math.sin(a) * 80 * d);
+        const c1 = new THREE.Mesh(new THREE.ConeGeometry(3.2, 9, 7), M('#2c5a34')); c1.position.y = 5.5; const c2 = new THREE.Mesh(new THREE.ConeGeometry(2, 4, 7), M('#f3f6fa')); c2.position.y = 8.8;
+        t.add(c1, c2); t.scale.setScalar(1 + rr()); grp.add(t);
+      }
+      const xs = [];
+      for (let k = 0; k < 7; k++) xs.push({ g: person(grp, JACKETS[(k + 2) % JACKETS.length], { skis: '#d8dde4', poles: true, hat: '#e63946' }), th: k / 7 * Math.PI * 2, v: 4.5 + rr() * 1.5, ph: rr() * 6 });
+      anim.push(dt => {
+        for (const x of xs) {
+          x.th += x.v / 75 * dt; x.ph += dt * 5.5;
+          const a = 94.5, b = 54.5, px = Math.cos(x.th) * a, pz = Math.sin(x.th) * b;
+          x.g.position.set(px, 0, pz); x.g.rotation.y = -Math.atan2(Math.cos(x.th) * b, -Math.sin(x.th) * a); swing(x.g, x.ph, 0.5);
+        }
+      });
+    }
+
+    // --- frozen lake with skaters going round, and one spinning in the middle
+    {
+      const [x0, z0] = sp.lake, grp = new THREE.Group(); grp.position.set(x0, terrainHeight(x0, z0) + 2, z0); scene.add(grp);
+      const bank = new THREE.Mesh(new THREE.CylinderGeometry(82, 88, 2.4, 64), M('#e9eef4')); bank.position.y = -1.22; grp.add(bank);
+      const ice = new THREE.Mesh(new THREE.CircleGeometry(68, 64), new THREE.MeshPhongMaterial({ color: '#cfe9f6', shininess: 90, specular: new THREE.Color('#ffffff') })); ice.rotation.x = -Math.PI / 2; grp.add(ice);
+      const shore = new THREE.Mesh(new THREE.RingGeometry(68, 82, 64), M('#f2f5f9')); shore.rotation.x = -Math.PI / 2; shore.position.y = -0.02; grp.add(shore);
+      const sk = [];
+      for (let k = 0; k < 13; k++) sk.push({ g: person(grp, JACKETS[(k + 5) % JACKETS.length], { hat: k % 3 ? '#e8c3a0' : '#f15bb5' }), r: 14 + rr() * 46, th: rr() * 6.3, v: (3.5 + rr() * 3) * (k % 6 === 0 ? -1 : 1), ph: rr() * 6 });
+      const spinner = person(grp, '#f15bb5', { hat: '#ffd166' }); spinner.userData.arms.forEach((a, i) => a.rotation.x = i ? -1.45 : 1.45);
+      anim.push(dt => {
+        for (const s2 of sk) {
+          s2.th += s2.v / s2.r * dt; s2.ph += dt * 3;
+          s2.g.position.set(Math.cos(s2.th) * s2.r, 0, Math.sin(s2.th) * s2.r);
+          const sg = Math.sign(s2.v); s2.g.rotation.y = -(s2.th + sg * Math.PI / 2); s2.g.rotation.x = sg * 0.22; swing(s2.g, s2.ph, 0.45);
+        }
+        spinner.rotation.y += dt * 9;
+      });
+    }
+
+    // --- football pitch: the Graz derby, black-and-white v red, with passes, shots and goals
+    {
+      const [x0, z0] = sp.foot, grp = new THREE.Group(); grp.position.set(x0, terrainHeight(x0, z0) + 2.6, z0);
+      grp.rotation.y = -(Math.atan2(cz - z0, cx - x0) + Math.PI / 2); scene.add(grp);      // a long side faces the track
+      const tex = canvasTex(1130, 760, (g, w, h) => {
+        const k = 10, X = x => (x + 56.5) * k, Z = z => (z + 38) * k;
+        for (let i = 0; i < 12; i++) { g.fillStyle = i % 2 ? '#3f8f3a' : '#479a41'; g.fillRect(X(-52.5 + i * 8.75), 0, 8.75 * k + 1, h); }
+        g.fillStyle = '#3d8a38'; g.fillRect(0, 0, X(-52.5), h); g.fillRect(X(52.5), 0, w, h);
+        g.strokeStyle = '#ffffff'; g.lineWidth = 3;
+        g.strokeRect(X(-52.5), Z(-34), 105 * k, 68 * k); g.beginPath(); g.moveTo(X(0), Z(-34)); g.lineTo(X(0), Z(34)); g.stroke();
+        g.beginPath(); g.arc(X(0), Z(0), 9.15 * k, 0, 7); g.stroke();
+        for (const sd of [-1, 1]) {
+          const gx = sd * 52.5; g.strokeRect(Math.min(X(gx), X(gx - sd * 16.5)), Z(-20.15), 16.5 * k, 40.3 * k); g.strokeRect(Math.min(X(gx), X(gx - sd * 5.5)), Z(-9.15), 5.5 * k, 18.3 * k);
+          g.beginPath(); g.arc(X(gx - sd * 11), Z(0), 9.15 * k, sd > 0 ? Math.PI * 0.7 : -Math.PI * 0.3, sd > 0 ? Math.PI * 1.3 : Math.PI * 0.3); g.stroke();
+        }
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(X(0), Z(0), 4, 0, 7); g.fill();
+      });
+      const pitch = new THREE.Mesh(new THREE.PlaneGeometry(113, 76), new THREE.MeshLambertMaterial({ map: tex })); pitch.rotation.x = -Math.PI / 2; grp.add(pitch);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(117, 2.7, 80), M('#3d8a38')); base.position.y = -1.36; grp.add(base);          // raised pitch
+      // a stand full of fans along the far touchline
+      const fans = canvasTex(512, 64, (g, w, h) => { g.fillStyle = '#2c3440'; g.fillRect(0, 0, w, h); const r = mulberry(8), cc = ['#f4f4f4', '#111', '#d0021b', '#f4f4f4', '#111', '#ffd400', '#d0021b'];
+        for (let i = 0; i < 2600; i++) { g.fillStyle = cc[(r() * cc.length) | 0]; g.fillRect(r() * w, r() * h, 2, 2); } }, true); fans.repeat.set(8, 1);
+      for (let k = 0; k < 5; k++) {
+        const hgt = 1 + k * 1.1, row = new THREE.Mesh(new THREE.BoxGeometry(90, hgt, 2.4), M('#8c939c')); row.position.set(0, hgt / 2, 42 + k * 2.4); grp.add(row);
+        const top = new THREE.Mesh(new THREE.PlaneGeometry(90, 2.4), new THREE.MeshLambertMaterial({ map: fans })); top.rotation.x = -Math.PI / 2; top.position.set(0, hgt + 0.02, 42 + k * 2.4); grp.add(top);
+      }
+      for (const sd of [-1, 1]) {
+        for (const z of [-3.66, 3.66]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.44, 0.15), M('#ffffff')); post.position.set(sd * 52.5, 1.22, z); grp.add(post); }
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 7.47), M('#ffffff')); bar.position.set(sd * 52.5, 2.44, 0); grp.add(bar);
+        const net = new THREE.Mesh(new THREE.BoxGeometry(2, 2.44, 7.32), new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.25 })); net.position.set(sd * 53.5, 1.22, 0); grp.add(net);
+      }
+      const FORM = [[-48, 0, 1], [-32, -22], [-34, -8], [-34, 8], [-32, 22], [-14, -20], [-16, -6], [-16, 6], [-14, 20], [-3, -8], [-3, 8]];
+      const pl = [];
+      for (const team of [0, 1]) FORM.forEach(([bx, bz, gk], k) => {
+        const sd = team ? -1 : 1, shirt = gk ? (team ? '#1f9d55' : '#ffd400') : team ? '#d0021b' : (k % 2 ? '#f4f4f4' : '#1b1b1b');
+        const g = person(grp, shirt, { pants: team ? '#f4f4f4' : '#111111', scale: 2 });
+        pl.push({ g, team, gk: !!gk, bx: bx * sd, bz, x: bx * sd, z: bz, hd: team ? Math.PI : 0, ph: rr() * 6 });
+      });
+      const ref = person(grp, '#111111', { pants: '#111111', scale: 2 }), refS = { x: -6, z: 12, hd: 0, ph: 0 };
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), M('#ffffff')); grp.add(ball);
+      const B = { x: 0, z: 0, y: 0.55, from: [0, 0], to: [0, 0], t: 1, dur: 1, h: 0, holder: 9, recv: -1, shot: false, timer: 1.2 };
+      const near = (team, x, z) => { let best = -1, bd = 1e9; pl.forEach((q, i) => { if (q.team !== team || q.gk) return; const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < bd) { bd = d; best = i; } }); return best; };
+      const kick = (to, recv, shot) => { B.from = [B.x, B.z]; B.to = to; B.recv = recv; B.shot = shot; const d = Math.hypot(to[0] - B.x, to[1] - B.z); B.dur = Math.max(0.35, d / (shot ? 28 : 20)); B.h = shot ? 0.8 : Math.min(5, d * 0.06); B.t = 0; B.holder = -1; };
+      anim.push(dt => {
+        if (B.holder >= 0) {
+          const h = pl[B.holder], dir = h.team ? -1 : 1;
+          B.x = h.x + Math.cos(h.hd) * 1.3; B.z = h.z + Math.sin(h.hd) * 1.3; B.y = 0.55;
+          if ((B.timer -= dt) <= 0) {
+            const goalX = dir * 52.5;
+            if (Math.abs(goalX - h.x) < 30 && Math.random() < 0.55) kick([goalX + dir, (Math.random() - 0.5) * 10], -1, true);
+            else {
+              const mates = pl.map((q, i) => i).filter(i => i !== B.holder && pl[i].team === h.team && !pl[i].gk && (pl[i].x - h.x) * dir > -12);
+              let to = mates.length ? mates[Math.floor(Math.random() * mates.length)] : near(h.team, h.x, h.z);
+              if (Math.random() < 0.22) to = near(1 - h.team, pl[to].x, pl[to].z);        // intercepted
+              kick([pl[to].x + dir * 2, pl[to].z], to, false);
+            }
+          }
+        } else {
+          B.t += dt / B.dur; const t = Math.min(1, B.t);
+          B.x = B.from[0] + (B.to[0] - B.from[0]) * t; B.z = B.from[1] + (B.to[1] - B.from[1]) * t; B.y = 0.55 + 4 * B.h * t * (1 - t);
+          if (t >= 1) {
+            if (B.shot) {
+              const attack = B.to[0] > 0 ? 0 : 1, goal = Math.abs(B.to[1]) < 3.4 && Math.random() < 0.5;
+              if (goal) { B.x = B.z = 0; B.holder = pl.findIndex(q => q.team !== attack && !q.gk && Math.abs(q.bx) < 5); }   // kick-off for the team that conceded
+              else B.holder = pl.findIndex(q => q.team !== attack && q.gk);                                                  // keeper saves it
+            } else B.holder = B.recv;
+            B.timer = 0.8 + Math.random() * 1.4;
+          }
+        }
+        const hold = B.holder >= 0 ? pl[B.holder] : null, chase = [near(0, B.x, B.z), near(1, B.x, B.z)];
+        pl.forEach((q, i) => {
+          let tx, tz, v = 6.5;
+          const dir = q.team ? -1 : 1;
+          if (q.gk) { tx = q.team ? 50.5 : -50.5; tz = clamp(B.z * 0.3, -5, 5); v = 4; }
+          else if (i === B.holder) { tx = clamp(q.x + dir * 6, -50, 50); tz = q.z + Math.sin(performance.now() / 600 + i) * 2; v = 5.5; }
+          else if (i === B.recv) { tx = B.to[0]; tz = B.to[1]; v = 7.5; }
+          else if (chase[q.team] === i && (!hold || hold.team !== q.team)) { tx = B.x; tz = B.z; v = 7; }
+          else { tx = q.bx + B.x * 0.45; tz = q.bz + B.z * 0.25; v = 5; }
+          const dx = tx - q.x, dz = tz - q.z, d = Math.hypot(dx, dz), step = Math.min(d, v * dt);
+          if (d > 0.3) { q.x += dx / d * step; q.z += dz / d * step; q.hd = Math.atan2(dz, dx); q.ph += dt * 9 * (step / dt / v); }
+          q.g.position.set(q.x, 0, q.z); q.g.rotation.y = -q.hd; swing(q.g, q.ph, d > 0.3 ? 0.6 : 0);
+        });
+        const rtx = B.x - 8, rtz = B.z + 12, rdx = rtx - refS.x, rdz = rtz - refS.z, rd = Math.hypot(rdx, rdz);
+        if (rd > 1) { const st = Math.min(rd, 5 * dt); refS.x += rdx / rd * st; refS.z += rdz / rd * st; refS.hd = Math.atan2(B.z - refS.z, B.x - refS.x); refS.ph += dt * 8; }
+        ref.position.set(refS.x, 0, refS.z); ref.rotation.y = -refS.hd; swing(ref, refS.ph, rd > 1 ? 0.5 : 0);
+        ball.position.set(B.x, B.y, B.z);
+      });
+    }
+    return anim;
+  }
+
   // ---- chaos objects
   let chaosObjs = [], hazMesh = new Map(), boxGeo = null, boxMat = null, padTex = null, padMat = null, rampMats = null, brickMat = null;
   // a flat strip lying on the terrain, centred on (x, y) and facing heading h
@@ -2918,6 +3143,7 @@ function buildGfx() {
     const pr = renderer.getPixelRatio();
     syncWeather(dt);
     syncPlanes(Math.min(dt, 0.1));
+    if (leisure && !paused) leisure.forEach(f => f(Math.min(dt, 0.1)));
     if (state === 'menu') {
       demo.s = (demo.s + dt * 46) % T.L;
       const p = sToPoint(demo.s, 0);
@@ -3295,6 +3521,7 @@ function recordKey() { return TRACK.recordKey + (cfg.handling === 'f1' ? '.f1' :
 const SEED_RECORDS = {
   algarve: { arcade: 91.2583, f1: 82.8333 }, spa: { arcade: 118.5, f1: 107.9583 }, monza: { arcade: 86.975, f1: 82.2583 },
   rbr: { arcade: 71.0333, f1: 65.5833 }, silverstone: { arcade: 101.775, f1: 93.775 },
+  chaves: { arcade: 35.8583, f1: 33.575 }, graz: { arcade: 25.7167, f1: 23.7333 },
 };
 // ---------------------------------------------------------------- online records (Supabase)
 // The anon key is a public key by design: the database only allows reading laps and adding new
