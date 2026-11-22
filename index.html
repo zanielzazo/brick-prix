@@ -151,7 +151,7 @@
         <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta. <kbd>R</kbd> restarts the run.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Handling</b> – F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it); Arcade is forgiving. Records are kept separately.</div>
-        <div><b>Track limits</b> – all four wheels past the kerb deletes that lap; after 3 warnings each one costs +5 s. Cut a corner or chicane and you must slow down to give the time back. Grass is slow; cut the infield and you're put back on track.</div>
+        <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
         <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records.</div>
         <div><b>Chaos</b> – mystery boxes on the straights give you Turbo Brick (boost), Oil Slick (drop behind), Loose Tyre (rolls ahead) or Safety Car (slows the leader). The boost key fires your item; whoever is behind gets better items.</div>
@@ -1353,28 +1353,46 @@ function step(dt) {
   if (state !== 'menu') spawnFx(dt);
 }
 
-// Track limits: an "excursion" starts when the car's centre is past the kerb (all four wheels off).
-// When it rejoins we compare centre-line progress with distance actually driven: if the car
-// gained ground it cut the corner and must slow down to give the time back.
+// Track limits (one rule for everyone): an "excursion" starts when all four wheels are past the
+// white line – kerbs are outside it. Every excursion deletes the lap time for best laps / records.
+// In races it's then judged when the car is back inside the line:
+//  • it gained ground (cut a corner/chicane) → slow down to give it back + warning
+//  • it stayed on kerb/run-off and kept its speed (lost < 10%) → warning (used extra track)
+//  • it went onto the grass or lost > 10% of its speed → just a note: the mistake already cost time
+// After 3 warnings each further one adds +5 s.
+function wheelsOff(c) {
+  const ch = Math.cos(c.h), sh = Math.sin(c.h), i = c.ti;
+  let minLat = Infinity, maxLat = -Infinity;
+  for (const [fx, fy] of [[1.8, 0.78], [1.8, -0.78], [-1.8, 0.8], [-1.8, -0.8]]) {
+    const wx = c.x + ch * fx - sh * fy, wy = c.y + sh * fx + ch * fy;
+    const lat = (wx - T.X[i]) * T.NX[i] + (wy - T.Y[i]) * T.NY[i];
+    minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+  }
+  return minLat - 0.2 > HALF_W || maxLat + 0.2 < -HALF_W;   // the whole of every tyre beyond the line
+}
 function trackLimits(c, ds, dt) {
-  const sp = Math.hypot(c.vx, c.vy);
+  const sp = Math.hypot(c.vx, c.vy), off = wheelsOff(c);
   if (!c.off) {
-    if (c.localD > KERB + 0.3 && sp > 3) c.off = { prog: 0, dist: 0, back: 0 };
+    if (off && sp > 3) c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false };
     return;
   }
-  c.off.prog += ds; c.off.dist += sp * dt;
-  if (c.localD > HALF_W + 1) { c.off.back = 0; return; }
-  c.off.back += dt;              // judge only once the car has stayed on track for a moment,
-  if (c.off.back < 0.8) return;  // so both apexes of a cut chicane count as one offence
-  const { prog, dist } = c.off; c.off = null;
-  if (dist < 3) return;
+  const o = c.off;
+  o.prog += ds; o.dist += sp * dt; o.vMin = Math.min(o.vMin, sp);
+  if (c.surf === SURF.grass) o.grass = true;
+  if (off) { o.back = 0; return; }
+  o.back += dt;                  // judge only once the car has stayed inside the line for a moment,
+  if (o.back < 0.8) return;      // so both apexes of a cut chicane count as one offence
+  c.off = null;
+  if (o.dist < 1) return;
   c.lapInvalid = true;
-  const gain = prog - dist;
+  const gain = o.prog - o.dist;
   if (isHot()) { if (c.timing) say(c, (gain > 3 ? 'CORNER CUT' : 'TRACK LIMITS') + ' · LAP INVALID', '#ff6b6b', 2.4); return; }
   if (gain > 3) {
     c.slowT = clamp(2.5 * gain / Math.max(sp, 15) + 0.5, 1.5, 8);
     c.slowV = Math.max(12, sp * 0.6);
     strike(c, 'CORNER CUT');
+  } else if (o.grass || 1 - o.vMin / Math.max(o.v0, 1) > 0.10) {
+    say(c, 'TRACK LIMITS · LAP TIME DELETED', '#ff9b9b', 1.8);
   } else strike(c, 'TRACK LIMITS');
 }
 function strike(c, what) {

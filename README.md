@@ -35,7 +35,7 @@ You can also use gamepads (right trigger to accelerate, left trigger to brake, s
 - **DRS** opens on the straights if you're less than 1 s behind at the detection line. In single player it opens in every DRS zone.
 - **ERS boost** gives extra power and recharges when you brake.
 - **Slipstream** gives you a tow when you sit behind the other car.
-- **Track limits**: all four wheels past the kerb deletes the lap. After 3 warnings, each offence adds +5 s. Cutting a corner forces you to slow down and give the time back.
+- **Track limits**: all four wheels past the white line (kerbs are outside it) deletes that lap time for best laps and records. In races, going wide while keeping your speed on the kerb or run-off earns a warning, and cutting a corner forces you to slow down and give the time back (plus a warning). A real mistake (onto the grass, or losing more than 10% of your speed) isn't punished again. After 3 warnings, each offence adds +5 s.
 - **Braking boards** stand 150 / 100 / 50 m before each big braking zone.
 
 ## Track records
