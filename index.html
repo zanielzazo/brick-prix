@@ -728,7 +728,7 @@ function leisureSpots() {
   const sp = { c: [cx, cy], ski: [cx - 300, cy - 400], xc: [cx + 175, cy - 150], lake: [cx + 165, cy + 75], foot: [cx + 5, cy + 150] };
   if (TRACK.schlossberg) sp.schloss = [s0.x + Math.cos(h0) * TRACK.schlossberg, s0.y + Math.sin(h0) * TRACK.schlossberg];
   sp.zones = TRACK.leisure ? [[sp.ski, 200], [sp.xc, 140], [sp.lake, 95], [sp.foot, 95]] : [];
-  sp.views = TRACK.leisure ? [sp.xc, sp.lake, sp.foot] : [];        // keep the view from the track to these clear of trees
+  sp.views = TRACK.leisure ? [sp.xc, sp.lake, sp.foot, sp.ski] : [];        // keep the view from the track to these clear of trees
   if (sp.schloss) sp.zones.push([sp.schloss, 165]);
   return sp;
 }
@@ -2696,16 +2696,16 @@ function buildGfx() {
       const geo = new THREE.ConeGeometry(R, Hm, 48, 10), pos = geo.attributes.position, col = [];
       const dAng = a => { let d = a - face; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
       for (let k = 0; k < pos.count; k++) {
-        const x = pos.getX(k), y = pos.getY(k) + Hm / 2, z = pos.getZ(k), a = Math.atan2(z, x), d = dAng(a), t = y / Hm, piste = d > -0.8 && d < 0.45;
-        if (!piste && y > 1 && y < Hm - 2) { const j = 1 + 0.06 * Math.sin(a * 5 + y * 0.07) * Math.cos(a * 3 - y * 0.05); pos.setX(k, x * j); pos.setZ(k, z * j); }
-        const c = new THREE.Color(piste || t > 0.45 ? '#f3f6fa' : t > 0.3 ? '#a6ae9f' : '#3d6a34'); col.push(c.r, c.g, c.b);
+        const x = pos.getX(k), y = pos.getY(k) + Hm / 2, z = pos.getZ(k), a = Math.atan2(z, x), d = dAng(a), t = y / Hm, piste = d > -0.8 && d < 0.32, bike = d > 0.36 && d < 1.25;
+        if (!piste && !bike && y > 1 && y < Hm - 2) { const j = 1 + 0.06 * Math.sin(a * 5 + y * 0.07) * Math.cos(a * 3 - y * 0.05); pos.setX(k, x * j); pos.setZ(k, z * j); }
+        const c = new THREE.Color(bike && t < 0.8 ? (t > 0.62 ? '#8f9a7f' : '#4a7a3a') : piste || t > 0.45 ? '#f3f6fa' : t > 0.3 ? '#a6ae9f' : '#3d6a34'); col.push(c.r, c.g, c.b);   // the bike flank is green
       }
       geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
       const mtn = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })); mtn.position.set(mx, y0 + Hm / 2, mz); scene.add(mtn);
       const surf = (phi, y, out = 0.6) => { const r = R * (1 - y / Hm) + out; return new THREE.Vector3(mx + Math.cos(phi) * r, y0 + y, mz + Math.sin(phi) * r); };
       const slope = Math.atan(Hm / R);
       const skiers = [];
-      for (let k = 0; k < 9; k++) skiers.push({ g: person(scene, JACKETS[k % JACKETS.length], { skis: k % 2 ? '#e63946' : '#111', poles: true, hat: JACKETS[(k + 4) % JACKETS.length], pants: '#1b1f2a' }), s: k / 9, v: 0.035 + rr() * 0.025, ph: rr() * 6, w: 0.18 + rr() * 0.12 });
+      for (let k = 0; k < 9; k++) skiers.push({ g: person(scene, JACKETS[k % JACKETS.length], { skis: k % 2 ? '#e63946' : '#111', poles: true, hat: JACKETS[(k + 4) % JACKETS.length], pants: '#1b1f2a' }), s: k / 9, v: 0.035 + rr() * 0.025, ph: rr() * 6, w: 0.12 + rr() * 0.1 });
       anim.push(dt => {
         for (const sk of skiers) {
           sk.s += sk.v * dt; if (sk.s > 1) sk.s -= 1;
@@ -2715,6 +2715,54 @@ function buildGfx() {
           sk.g.rotation.z = -slope * 0.45; sk.g.rotation.x = Math.cos(sk.s * Math.PI * 7 + sk.ph) * 0.35;
         }
       });
+      // downhill bike trail: dirt switchbacks with berms and jumps down the green flank, riders bombing down
+      {
+        const trailAt = s => surf(face + 0.78 + 0.27 * Math.sin(s * Math.PI * 5), Hm * 0.72 * (1 - s) + 0.6, 0.35);
+        const onCone = (x, z, lift) => { const r = Math.hypot(x - mx, z - mz); return y0 + Hm * (1 - (r - 0.35) / R) + lift; };
+        const NS = 260, tp = [], ti = [];
+        for (let k = 0; k <= NS; k++) {
+          const a = trailAt(k / NS), b = trailAt(Math.min(1, (k + 1) / NS)), c0 = trailAt(Math.max(0, (k - 1) / NS));
+          const tx = b.x - c0.x, tz = b.z - c0.z, l = Math.hypot(tx, tz) || 1, nx = -tz / l * 1.7, nz = tx / l * 1.7;
+          for (const sd of [-1, 1]) { const x = a.x + nx * sd, z = a.z + nz * sd; tp.push(x, onCone(x, z, 0.12), z); }
+          if (k < NS) { const i = k * 2; ti.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
+        }
+        const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3)); tg.setIndex(ti); tg.computeVertexNormals();
+        scene.add(new THREE.Mesh(tg, new THREE.MeshLambertMaterial({ color: '#8a5a35', side: THREE.DoubleSide })));
+        const JUMPS = [0.17, 0.39, 0.61, 0.83];
+        for (const js of JUMPS) {             // dirt kickers
+          const a = trailAt(js - 0.006), b = trailAt(js + 0.004), kick = new THREE.Mesh(new THREE.BoxGeometry(3, 1.1, 3.2), M('#7a4c2b'));
+          kick.position.copy(a.clone().lerp(b, 0.5)); kick.position.y += 0.3; kick.rotation.order = 'YZX';
+          kick.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x); kick.rotation.z = 0.35; scene.add(kick);
+        }
+        for (let k = 0; k < 10; k++) {         // trail-side flags
+          const a = trailAt((k + 0.5) / 10), f = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.4, 0.1), M('#ddd')), fl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.6, 0.9), M(k % 2 ? '#e63946' : '#ffb703'));
+          f.position.set(a.x + 2.4, a.y + 1.2, a.z); fl.position.set(a.x + 2.4, a.y + 2.1, a.z + 0.45); scene.add(f, fl);
+        }
+        const wheelGeo = new THREE.TorusGeometry(0.34, 0.06, 6, 14), riders = [];
+        for (let k = 0; k < 6; k++) {
+          const g = new THREE.Group(), frame = M(['#e63946', '#1d6fb8', '#43aa8b', '#ffb703', '#7b2cbf', '#fb8500'][k]);
+          for (const x of [-0.55, 0.55]) { const w = new THREE.Mesh(wheelGeo, M('#1b1b1b')); w.position.set(x, 0.34, 0); g.add(w); }
+          const bar = (w, x, y, rz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, 0.07), frame); m.position.set(x, y, 0); m.rotation.z = rz; g.add(m); };
+          bar(0.95, 0, 0.62, 0.05); bar(0.75, -0.18, 0.5, 0.9); bar(0.55, 0.42, 0.55, -1.1);
+          const hb = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.7), M('#222')); hb.position.set(0.46, 0.95, 0); g.add(hb);
+          const rider = person(g, ['#111', '#e63946', '#1d6fb8', '#f4f4f4', '#43aa8b', '#ffb703'][k], { hat: ['#ffb703', '#111', '#e63946', '#1d6fb8', '#f15bb5', '#111'][k], scale: 1 });
+          rider.position.set(-0.15, 0.05, 0); rider.rotation.z = -0.45; rider.userData.legs.forEach((l, i) => l.rotation.z = i ? 0.9 : 0.3); rider.userData.arms.forEach(a => a.rotation.z = 1.1);
+          g.scale.setScalar(2.2); g.rotation.order = 'YZX'; scene.add(g);
+          riders.push({ g, s: k / 6, v: 0.05 + rr() * 0.025, air: 0 });
+        }
+        anim.push(dt => {
+          for (const r of riders) {
+            r.s += r.v * dt; if (r.s > 1) r.s -= 1;
+            const a = trailAt(r.s), b = trailAt(Math.min(1, r.s + 0.004));
+            let lift = 0;
+            for (const js of JUMPS) { const u = (r.s - js) / 0.022; if (u > 0 && u < 1) lift = Math.sin(u * Math.PI) * 5; }
+            r.g.position.set(a.x, onCone(a.x, a.z, 0.15) + lift, a.z);
+            r.g.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+            const drop = (a.y - b.y) / (Math.hypot(b.x - a.x, b.z - a.z) || 1);
+            r.g.rotation.z = -Math.atan(drop) * 0.8 + (lift > 0.5 ? 0.15 : 0);
+          }
+        });
+      }
       // chairlift: towers, two cables, chairs going up (with skiers) and coming down empty
       const A = surf(lift, 4, 0), B = surf(lift, Hm * 0.8, 0), up = new THREE.Vector3(0, 9, 0);
       const dir = B.clone().sub(A), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(2.2);
