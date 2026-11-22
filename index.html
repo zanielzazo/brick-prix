@@ -383,7 +383,7 @@ const TRACKS = {
     raw: GRAZ_RAW, startLine: [31.2, -12.6], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,   // raced right→left on the main straight (the way it's drawn in OSM)
     turnNames: { first: 'Pushback', middle: 'Taxiway', tightest: 'Turnaround', last: 'Final Approach' },
     drsText: 'no DRS on the kart track', dims: { half: 3.1, kerb: 3.8, runoff: 4.2, wall: 7, sp: 1 },     // ~6 m of asphalt, grass and tyres between sections
-    brand: true, planes: true, leisure: true, schlossberg: 560,   // metres straight ahead of the start line          // Aeroficial Intelligence colours and ads; Graz Airport is next door
+    brand: true, planes: true, leisure: true, airship: true, schlossberg: 560,   // metres straight ahead of the start line          // Aeroficial Intelligence colours and ads; Graz Airport is next door
     theme: { sky: '#9fc6ec', fog: '#c8d9e8', fogNear: 300, fogFar: 1700, hemiGround: '#55683a', grass: ['#4d8a3a', '#55923f'], outerNear: '#5c8a42', outerFar: '#8c8c56', ground: '#6c7d45', trees: 'broadleaf', treeCount: 150, hills: 0, bumps: 0.3, margin: 260,
       kerb: [AERO.teal, AERO.navy], tyres: [AERO.navy, AERO.teal, '#f4f4f4'], gantry: AERO.navy },
   },
@@ -2387,6 +2387,7 @@ function buildGfx() {
   carMeshes = []; ghostMesh = null; chaosObjs = []; hazMesh = new Map(); skidHead = 0; skidCount = 0; skidGeo.setDrawRange(0, 0);
   planes = []; planeT = 1;
   leisure = TRACK.leisure ? buildLeisure() : null;
+  airship = TRACK.airship && TRACK.schlossberg ? buildAirship() : null;
   demo.s = 0; demo.cam.station = -1; demo.cam.snap = true;
   }
 
@@ -2666,7 +2667,50 @@ function buildGfx() {
 
   // ---- Graz winter & sports scenery, all animated: skiers and a chairlift on a snowy mountain,
   // cross-country skiers on a trail, skaters on a frozen lake, and a football match (a Graz derby)
-  let leisure = null;
+  let leisure = null, airship = null;
+  // A huge Aeroficial airship hovering beside the Schlossberg, broadside to the grid so the logo reads from the start.
+  function buildAirship() {
+    const sp = leisureSpots(), s0 = sToPoint(0, 0), h0 = Math.atan2(T.TY[s0.i], T.TX[s0.i]);
+    const [sx, sz] = sp.schloss, px = -Math.sin(h0), pz = Math.cos(h0);                     // sideways from the line of sight
+    const side = 215, base = new THREE.Vector3(sx + px * side, terrainHeight(sx, sz) + 105, sz + pz * side);
+    const L = 120, Rr = 14, g = new THREE.Group(), lam = c => new THREE.MeshLambertMaterial({ color: c });
+    const env = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24), new THREE.MeshPhongMaterial({ color: AERO.navy, shininess: 40, specular: new THREE.Color('#3a5f86') }));
+    env.scale.set(L / 2, Rr, Rr); g.add(env);
+    const rx = x => Rr * Math.sqrt(Math.max(0, 1 - (x / (L / 2)) ** 2));                     // envelope radius at x
+    for (const x of [-38, 36]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(rx(x) + 0.15, 0.9, 8, 40), lam(AERO.teal)); ring.rotation.y = Math.PI / 2; ring.position.x = x; g.add(ring); }
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(2.2, 12, 10), lam(AERO.teal)); nose.position.x = L / 2 - 0.6; g.add(nose);
+    // the logo on both sides, plus a teal band with the web address underneath
+    const logoM = new THREE.MeshBasicMaterial({ map: logoTex(1024, 500, (c2, w, h, img) => { c2.clearRect(0, 0, w, h); if (img) c2.drawImage(img, 0, 0, w, h); }), transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    const urlM = new THREE.MeshBasicMaterial({ map: canvasTex(1024, 128, (c2, w, h) => { c2.fillStyle = AERO.teal; c2.fillRect(0, 0, w, h); c2.fillStyle = AERO.navy; c2.font = '900 78px Segoe UI, Arial, sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.fillText('aeroficial.com', w / 2, h / 2 + 4); }), side: THREE.DoubleSide });
+    for (const sd of [-1, 1]) {
+      const lg = new THREE.Mesh(new THREE.PlaneGeometry(58, 28.3), logoM); lg.position.set(2, 2.5, sd * (Rr + 0.4)); lg.rotation.y = sd > 0 ? 0 : Math.PI; g.add(lg);
+      const url = new THREE.Mesh(new THREE.PlaneGeometry(34, 4.25), urlM); url.position.set(2, -8.2, sd * (rx(2) * 0.78 + 0.5)); url.rotation.set(sd * 0.55, sd > 0 ? 0 : Math.PI, 0); g.add(url);
+    }
+    // tail fins (teal), gondola with windows, two engine pods with spinning propellers
+    for (const [ry, rzz] of [[0, 0], [0, Math.PI], [Math.PI / 2, 0], [-Math.PI / 2, 0]]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(16, 13, 0.8), lam(AERO.teal)); const f = new THREE.Group(); fin.position.set(0, Rr * 0.55 + 6, 0); f.add(fin);
+      f.position.x = -L / 2 + 12; f.rotation.set(ry === 0 ? rzz : 0, 0, 0); if (ry) f.rotation.x = ry; g.add(f);
+    }
+    const gon = new THREE.Mesh(new THREE.BoxGeometry(18, 4.2, 5.5), lam('#e9edf2')); gon.position.set(6, -Rr - 1.6, 0); g.add(gon);
+    for (const sd of [-1, 1]) { const win = new THREE.Mesh(new THREE.BoxGeometry(14, 1.3, 0.1), lam('#1b2a3a')); win.position.set(6, -Rr - 1.2, sd * 2.8); g.add(win); }
+    const props = [];
+    for (const sd of [-1, 1]) {
+      const pod = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.1, 4.5, 12), lam('#cfd6de')); pod.rotation.z = Math.PI / 2; pod.position.set(2, -Rr - 0.5, sd * 6.5); g.add(pod);
+      const prop = new THREE.Mesh(new THREE.BoxGeometry(0.3, 6, 0.6), lam('#2b2f36')); prop.position.set(-0.9, -Rr - 0.5, sd * 6.5); g.add(prop); props.push(prop);
+    }
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff3030' })); lamp.position.set(0, Rr + 0.6, 0); g.add(lamp);
+    g.rotation.order = 'YZX'; g.scale.setScalar(1.45); scene.add(g);            // ~175 m long
+    const hd = Math.atan2(pz, px);                          // long axis across the view from the grid: broadside to the start
+    let t = 0;
+    return dt => {
+      t += dt;
+      const drift = Math.sin(t * 0.04) * 35;
+      g.position.set(base.x + Math.cos(hd) * drift, base.y + Math.sin(t * 0.35) * 2.5, base.z + Math.sin(hd) * drift);
+      g.rotation.y = -(hd + Math.sin(t * 0.06) * 0.12); g.rotation.z = Math.sin(t * 0.3) * 0.02;
+      props.forEach(p => p.rotation.x += dt * 14);
+      lamp.visible = Math.floor(t * 1.2) % 2 === 0;
+    };
+  }
   function buildLeisure() {
     const sp = leisureSpots(), anim = [], mats = new Map(), rr = mulberry(41);
     const M = c => { if (!mats.has(c)) mats.set(c, new THREE.MeshLambertMaterial({ color: c })); return mats.get(c); };
@@ -3192,6 +3236,7 @@ function buildGfx() {
     syncWeather(dt);
     syncPlanes(Math.min(dt, 0.1));
     if (leisure && !paused) leisure.forEach(f => f(Math.min(dt, 0.1)));
+    if (airship && !paused) airship(Math.min(dt, 0.1));
     if (state === 'menu') {
       demo.s = (demo.s + dt * 46) % T.L;
       const p = sToPoint(demo.s, 0);
