@@ -251,7 +251,7 @@ const F1_CAR = {
 const KART = {
   wb: 1.05, power: 70, drag: 0.0035, gears: [27.5], vmax: 30, vs: 0.33, driftMin: 7, halfW: 0.72, len: 1.9,
   wheels: [[0.52, 0.55], [0.52, -0.55], [-0.52, 0.6], [-0.52, -0.6]], front: 0.5, rear: -0.5, crash: 0.6,
-  camBack: 4.0, camUp: 1.5, camLook: 5, eye: 0.98, eyeBack: 0.3, tag: 1.5,
+  camBack: 4.0, camUp: 1.5, camLook: 5, eye: 0.9, eyeBack: 0.12, tag: 1.5,
 };
 let VEH = F1_CAR;
 const STEP = 1 / 120;
@@ -355,7 +355,7 @@ const TRACKS = {
   },
   chaves: {
     id: 'chaves', title: 'CHAVES', full: 'Kartódromo de Chaves', place: 'Chaves, Portugal', km: '0.59 km', turns: 0, recordKey: 'record.chaves', kart: true,
-    raw: CHAVES_RAW, startLine: [32.2, -0.7], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,
+    raw: CHAVES_RAW, startLine: [69.5, -27.8], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,
     drsText: 'no DRS on the kart track', dims: { half: 3.6, kerb: 4.4, runoff: 5.4, wall: 7.2, sp: 1 },
     theme: { sky: '#9cc4ea', fog: '#c4d6e6', fogNear: 180, fogFar: 950, hemiGround: '#5a6b3a', grass: ['#4f8a3a', '#57923f'], outerNear: '#5f8a42', outerFar: '#8a8a55', ground: '#6f7f45', trees: 'broadleaf', treeCount: 170, hills: 0, bumps: 0.5, margin: 220 },
   },
@@ -2183,8 +2183,9 @@ function buildGfx() {
     box(0.34, 0.42, 0.4, mSuit, -0.18, 0.52, 0);               // driver torso
     for (const z of [-0.12, 0.12]) box(0.62, 0.12, 0.13, mSuit, 0.2, 0.24, z);   // legs
     for (const z of [-0.2, 0.2]) box(0.36, 0.08, 0.08, mSuit, 0.04, 0.62, z);    // arms
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), L(col.helmet)); helmet.position.set(-0.14, 0.86, 0); body.add(helmet);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.2), L('#111')); visor.position.set(-0.01, 0.87, 0); body.add(visor);
+    const head = new THREE.Group(); body.add(head);           // hidden in this driver's own onboard view
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), L(col.helmet)); helmet.position.set(-0.14, 0.86, 0); head.add(helmet);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.2), L('#111')); visor.position.set(-0.01, 0.87, 0); head.add(visor);
     const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.02, 6, 14), mFrame); wheel.position.set(0.22, 0.6, 0); wheel.rotation.y = Math.PI / 2; wheel.rotation.x = 0.5; body.add(wheel);
     box(0.32, 0.3, 0.24, L('#5b6068'), -0.5, 0.3, -0.44);       // engine
     const flapPivot = new THREE.Group(); body.add(flapPivot);
@@ -2202,7 +2203,7 @@ function buildGfx() {
     shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.04; g.add(shadow);
     g.rotation.order = 'YZX';
     scene.add(g);
-    return { g, body, wheels, fronts, flapPivot, light };
+    return { g, body, wheels, fronts, flapPivot, light, head };
   }
   const vehModel = col => TRACK.kart ? kartModel(col) : carModel(col);
   // F1 car model
@@ -2561,7 +2562,10 @@ function buildGfx() {
       renderer.setViewport(vp.x, y, vp.w, vp.h); renderer.setScissor(vp.x, y, vp.w, vp.h);
       pMat.uniforms.scale.value = wxMat.uniforms.scale.value = vp.h * pr / (2 * Math.tan(cam.fov * Math.PI / 360));
       wxMat.uniforms.cpos.value.copy(cam.position);
+      const own = carMeshes[cars.indexOf(c)], hideHead = !!(own && own.head && c.camMode === 'onboard');
+      if (hideHead) own.head.visible = false;
       renderer.render(scene, cam);
+      if (hideHead) own.head.visible = true;
       cams.push(cam);
     });
     return cams;
