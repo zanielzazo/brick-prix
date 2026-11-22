@@ -1258,6 +1258,12 @@ function placeHot(c) {
     s0 = T.S[last.a] - 300 * KS;                          // ~3 s of run-up before you have to brake
     if (prev) s0 = Math.max(s0, T.S[prev.b] + 60 * KS);   // but never inside the corner before it
   }
+  if (TRACK.kart) {      // kart track: start where the straight leading to the line begins
+    const curvy = s => { let k = 0; for (let q = -2; q <= 2; q++) k += Math.abs(T.K[sToPoint(s + q, 0).i]); return k / 5 > 1 / 30; };
+    let s = 0;
+    while (s > -T.L / 2 && !curvy(s - 1)) s -= 1;
+    s0 = T.L + s + 4;
+  }
   const p = sToPoint(s0, 0), v = (T.vProf ? T.vProf[p.i] : 40) * 0.95;
   c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = s0; c.prog = s0 - T.L; c.alt = p.alt;
   c.vx = Math.cos(p.h) * v; c.vy = Math.sin(p.h) * v; c.vf = v;
