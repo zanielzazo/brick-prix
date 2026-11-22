@@ -1787,9 +1787,10 @@ function drawHud(vp, c) {
       ctx.fillStyle = s ? s.col : 'rgba(255,255,255,.12)';
       ctx.fillRect(x + 14 + k * 66, 110, 60, 8);
     }
-    // live delta to your best lap
-    if (c.timing && !c.finished && c.bestTrace) {
-      const within = c.prog - c.lapsDone * T.L, kk = Math.floor(within / 10), b = c.bestTrace;
+    // live delta: against the ghost you're chasing (record or your best), otherwise your best lap
+    const refTr = isHot() && ghostShow && ghostShow.tr ? ghostShow.tr : c.bestTrace;
+    if (c.timing && !c.finished && refTr) {
+      const within = c.prog - c.lapsDone * T.L, kk = Math.floor(within / 10), b = refTr;
       if (kk >= 0 && b[kk] != null) {
         const tb = b[kk + 1] != null ? b[kk] + (b[kk + 1] - b[kk]) * (within / 10 - kk) : b[kk];
         const d = (simTime - c.lapStart) - tb;
@@ -1802,7 +1803,7 @@ function drawHud(vp, c) {
       let label, dot = '#6b6f76';
       if (cfg.ghost === 'off') label = 'Off – press G';
       else if (ghostShow) {
-        label = ghostShow.name + ' · ' + fmt(ghostShow.t) + (c.timing ? '' : ' · from the line');
+        label = ghostShow.name + ' · ' + fmt(ghostShow.t);
         dot = ghostShow === ghost ? '#4fc8ff' : '#ffc83d';
       } else if (cfg.ghost === 'record' && recState === 'loading') label = 'Loading record…';
       else if (cfg.ghost === 'mine') label = 'Drive a valid lap first';
@@ -1972,6 +1973,28 @@ function packGhost(rec) {
   for (let i = 0; i < rec.length; i += 2) p.push(Math.round(rec[i][1] * 10), Math.round(rec[i][2] * 10), Math.round(rec[i][3] * 1000));
   return { v: 1, dt: 0.1, p };
 }
+// Time at every 10 m of the lap, from a ghost's positions – the same shape as a car's live trace,
+// so the delta works against any ghost. Positions are tracked along the centreline like a car.
+function traceFromSamples(smp) {
+  if (!smp.length) return null;
+  const g0 = nearestGlobal(smp[0][1], smp[0][2]);
+  const probe = { x: smp[0][1], y: smp[0][2], ti: g0 ? g0.j : 0 };
+  let s = trackLocal(probe), prog = s > T.L / 2 ? s - T.L : s, prevProg = prog, prevT = smp[0][0];
+  const tr = [];
+  let k = Math.max(0, Math.ceil(prog / 10));
+  for (let i = 1; i < smp.length; i++) {
+    probe.x = smp[i][1]; probe.y = smp[i][2];
+    const s1 = trackLocal(probe);
+    let ds = s1 - s; if (ds < -T.L / 2) ds += T.L; if (ds > T.L / 2) ds -= T.L;
+    s = s1; prog += ds;
+    while (k * 10 <= prog) {
+      const f = prog > prevProg ? (k * 10 - prevProg) / (prog - prevProg) : 0;
+      tr[k] = prevT + (smp[i][0] - prevT) * clamp(f, 0, 1); k++;
+    }
+    prevProg = prog; prevT = smp[i][0];
+  }
+  return tr;
+}
 async function fetchRecordGhost(track, handling) {   // fastest lap that has a ghost
   if (!onlineOn()) return null;
   try {
@@ -1981,7 +2004,7 @@ async function fetchRecordGhost(track, handling) {   // fastest lap that has a g
     if (!row || !row.ghost || !Array.isArray(row.ghost.p)) return null;
     const dt = row.ghost.dt || 0.1, p = row.ghost.p, smp = [];
     for (let i = 0; i + 2 < p.length; i += 3) smp.push([(i / 3) * dt, p[i] / 10, p[i + 1] / 10, p[i + 2] / 1000]);
-    return { t: row.lap_ms / 1000, s: smp, dt, name: row.name };
+    return { t: row.lap_ms / 1000, s: smp, dt, name: row.name, tr: traceFromSamples(smp) };
   } catch (e) { return null; }
 }
 async function uploadLap(c, lt, rec) {
