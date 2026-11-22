@@ -2679,12 +2679,10 @@ function buildGfx() {
     const rx = x => Rr * Math.sqrt(Math.max(0, 1 - (x / (L / 2)) ** 2));                     // envelope radius at x
     for (const x of [-38, 36]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(rx(x) + 0.15, 0.9, 8, 40), lam(AERO.teal)); ring.rotation.y = Math.PI / 2; ring.position.x = x; g.add(ring); }
     const nose = new THREE.Mesh(new THREE.SphereGeometry(2.2, 12, 10), lam(AERO.teal)); nose.position.x = L / 2 - 0.6; g.add(nose);
-    // the logo on both sides, plus a teal band with the web address underneath
+    // the logo (hummingbird + wordmark) on both sides
     const logoM = new THREE.MeshBasicMaterial({ map: logoTex(1024, 500, (c2, w, h, img) => { c2.clearRect(0, 0, w, h); if (img) c2.drawImage(img, 0, 0, w, h); }), transparent: true, depthWrite: false, side: THREE.DoubleSide });
-    const urlM = new THREE.MeshBasicMaterial({ map: canvasTex(1024, 128, (c2, w, h) => { c2.fillStyle = AERO.teal; c2.fillRect(0, 0, w, h); c2.fillStyle = AERO.navy; c2.font = '900 78px Segoe UI, Arial, sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.fillText('aeroficial.com', w / 2, h / 2 + 4); }), side: THREE.DoubleSide });
     for (const sd of [-1, 1]) {
-      const lg = new THREE.Mesh(new THREE.PlaneGeometry(58, 28.3), logoM); lg.position.set(2, 2.5, sd * (Rr + 0.4)); lg.rotation.y = sd > 0 ? 0 : Math.PI; g.add(lg);
-      const url = new THREE.Mesh(new THREE.PlaneGeometry(34, 4.25), urlM); url.position.set(2, -8.2, sd * (rx(2) * 0.78 + 0.5)); url.rotation.set(sd * 0.55, sd > 0 ? 0 : Math.PI, 0); g.add(url);
+      const lg = new THREE.Mesh(new THREE.PlaneGeometry(58, 28.3), logoM); lg.position.set(2, 0, sd * (Rr + 0.4)); lg.rotation.y = sd > 0 ? 0 : Math.PI; g.add(lg);
     }
     // tail fins (teal), gondola with windows, two engine pods with spinning propellers
     for (const [ry, rzz] of [[0, 0], [0, Math.PI], [Math.PI / 2, 0], [-Math.PI / 2, 0]]) {
