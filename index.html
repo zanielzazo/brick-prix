@@ -356,6 +356,19 @@ const TRACKS = {
   chaves: {
     id: 'chaves', title: 'CHAVES', full: 'Kartódromo de Chaves', place: 'Chaves, Portugal', km: '0.59 km', turns: 0, recordKey: 'record.chaves', kart: true,
     raw: CHAVES_RAW, startLine: [69.5, -27.8], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,
+    // home of three friends: Zazo (the fast one), Hugo (the middle one) and Filipe (the other one)
+    turnNames: { first: 'Curva do Zazo', middle: 'Curva do Hugo', tightest: 'Gancho do Filipe' },
+    jokes: {
+      boards: [
+        ['ZAZO 👑', 'REI DE CHAVES', '#ffc83d'],
+        ['FILIPE', 'O TRAVÃO É O PEDAL DA ESQUERDA', '#ff6fa3'],
+        ['HUGO', 'NEM BOM NEM MAU', '#9aa6b2'],
+        ['ZAZO > TODOS', 'É CIÊNCIA', '#ffc83d'],
+        ['FILIPE', 'AINDA ESTÁS NA VOLTA 1?', '#ff6fa3'],
+        ['HUGO', 'P2 DESDE SEMPRE', '#9aa6b2'],
+      ],
+      crash: ['AQUI O FILIPE BATEU', 'E AQUI. E AQUI TAMBÉM.', '#ff6fa3'],
+    },
     drsText: 'no DRS on the kart track', dims: { half: 3.6, kerb: 4.4, runoff: 5.4, wall: 7.2, sp: 1 },
     theme: { sky: '#9cc4ea', fog: '#c4d6e6', fogNear: 180, fogFar: 950, hemiGround: '#5a6b3a', grass: ['#4f8a3a', '#57923f'], outerNear: '#5f8a42', outerFar: '#8a8a55', ground: '#6f7f45', trees: 'broadleaf', treeCount: 170, hills: 0, bumps: 0.5, margin: 220 },
   },
@@ -566,6 +579,14 @@ function buildTrack(def) {
       let peak = true; for (let q = -8; q <= 8 && peak; q++) if (q && Math.abs(aK((i + q + N) % N)) > k) peak = false;
       if (!peak || S[i] - last < 14) continue;
       last = S[i]; tr.labels.push({ i, side: aK(i) > 0 ? -1 : 1, ref: String(tr.labels.length + 1), name: '', h: null });
+    }
+    const tn = def.turnNames, ls = tr.labels;
+    if (tn && ls.length > 2) {
+      const tight = ls.reduce((a, b) => Math.abs(K[b.i]) > Math.abs(K[a.i]) ? b : a);
+      let mid = ls[Math.floor((ls.length - 1) / 2)];
+      if (mid === tight || mid === ls[0]) mid = ls[ls.indexOf(mid) + 1];
+      ls[0].name = tn.first; mid.name = tn.middle; tight.name = tn.tightest;
+      tr.tightest = tight;
     }
   }
   const at = ([name, off]) => ((sOf(def.pts[name]) + off) % Ltot + Ltot) % Ltot;
@@ -885,7 +906,11 @@ const CPU_LEVELS = { easy: { skill: 0.93, grip: 1.0, brake: 0.8 }, medium: { ski
 function makeCpu(id, k, names) {
   const c = makeCar(id);
   c.cpu = true; c.name = names[k % names.length]; c.col = CPU_COLORS[k % CPU_COLORS.length];
-  const lv = CPU_LEVELS[cfg.cpuLevel] || CPU_LEVELS.medium;
+  let lv = CPU_LEVELS[cfg.cpuLevel] || CPU_LEVELS.medium;
+  if (TRACK.jokes && c.name === 'Hugo') lv = { skill: 0.93, grip: 1.08, brake: 0.82 };   // always mid
+  if (TRACK.jokes && c.name === 'Filipe') { lv = { skill: 0.84, grip: 0.95, brake: 0.62 }; c.clumsy = true; }   // always… Filipe
+  if (TRACK.jokes && c.name === 'Hugo') c.col = { c: '#9aa6b2', d: '#2b3139', helmet: '#ffffff' };
+  if (TRACK.jokes && c.name === 'Filipe') c.col = { c: '#ff6fa3', d: '#5a1035', helmet: '#ffe066' };
   c.skill = lv.skill + (Math.random() - 0.5) * 0.02; c.gripK = lv.grip * (1 + (Math.random() - 0.5) * 0.04); c.brakeK = lv.brake;
   c.lane = 0; c.laneT = 0; c.itemT = 0; c.stuckT = 0; c.camMode = 'rear';
   return c;
@@ -950,6 +975,11 @@ function cpuInput(c) {
   while (ang > Math.PI) ang -= 2 * Math.PI; while (ang < -Math.PI) ang += 2 * Math.PI;
   if (c.profFor !== T) { c.prof = cpuProfile(c.skill * (c.gripK || 1), c.brakeK || 0.85, c.gripK || 1); c.profFor = T; }
   const vt = c.prof[(c.ti + 2) % T.N] * Math.sqrt(g / c.skill * gripMul(c)) * (c.laneT > 0 ? 0.97 : 1);
+  // Filipe spins on his own now and then, mostly in the tight stuff
+  if (c.clumsy && state === 'race' && !c.finished && c.spinT <= 0 && Math.abs(T.K[c.ti]) > 1 / 25 && c.vf > 8 && Math.random() < STEP * 0.07) {
+    c.spinT = 1.1; c.spinDir = Math.random() < 0.5 ? -1 : 1; c.shake = 0.3;
+    humans().forEach(h => { if (h.msgT < 0.3) say(h, 'O FILIPE RODOU 🙃', '#ff9bd2', 1.4); });
+  }
   return { throttle: c.vf < vt - 0.5 ? 1 : 0, brake: c.vf > vt + 1.5 ? 1 : 0, steer: clamp(ang * 4, -1, 1), boost: cpuItem(c), analog: true };
 }
 function standings() {                       // finished cars by place, then everyone else by progress
@@ -1294,7 +1324,12 @@ function startRace(rematch) {
   const solo = cfg.players === 1;
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
   const nCpu = solo && cfg.mode === 'hot' ? 0 : clamp(cfg.cpu | 0, 0, 5);
-  const names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5), cpus = [];
+  let names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5);
+  const cpus = [];
+  if (TRACK.jokes) {            // the local legends race at Chaves – unless one of them is at the wheel
+    const taken = hs.map(h => h.name.trim().toLowerCase());
+    names = ['Hugo', 'Filipe'].filter(n => !taken.includes(n.toLowerCase())).concat(names);
+  }
   for (let k = 0; k < nCpu; k++) cpus.push(makeCpu(hs.length + k, k, names));
   cars = hs.concat(cpus);
   if (solo && cfg.mode === 'hot') placeHot(cars[0]);
@@ -2089,6 +2124,57 @@ function buildGfx() {
     const i = l.i, o = l.side * (TRACK.kart ? KERB + 0.4 : WALL + 3);
     sp.position.set(X[i] + NX[i] * o, HT[i] + (TRACK.kart ? 2.4 : 4.5), Y[i] + NY[i] * o); sp.scale.set(TRACK.kart ? 3.6 : 8, TRACK.kart ? 1.8 : 4, 1); scene.add(sp);
   });
+  // Chaves inside jokes: billboards behind the outer tyre walls, a sign where Filipe crashes, the podium
+  if (TRACK.jokes && T.wallW) {
+    const J = TRACK.jokes, postMat = new THREE.MeshLambertMaterial({ color: '#555b63' });
+    const sign = ([text, sub, col], x, z, y0, w = 4.6) => {
+      const tex = canvasTex(512, 128, (g, w2, h2) => {
+        g.fillStyle = '#101216'; g.fillRect(0, 0, w2, h2); g.fillStyle = col; g.fillRect(0, 0, w2, 10); g.fillRect(0, h2 - 10, w2, 10);
+        g.textAlign = 'center'; g.fillStyle = '#fff'; g.font = `900 ${sub ? 52 : 60}px Segoe UI, Arial, sans-serif`; g.fillText(text, w2 / 2, sub ? 64 : 84, w2 - 30);
+        if (sub) { g.font = '800 27px Segoe UI, Arial, sans-serif'; g.fillStyle = col; g.fillText(sub, w2 / 2, 104, w2 - 30); }
+      });
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, fog: true }));
+      sp.position.set(x, y0 + 1.25 + w / 8, z); sp.scale.set(w, w / 4, 1); scene.add(sp);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.1), postMat); post.position.set(x, y0 + 0.65, z); scene.add(post);
+    };
+    // a spot `out` metres behind the wall on one side, with no other part of the track within `room` m
+    const clearAt = (i, si, out, room) => {
+      const side = si ? 1 : -1, d = T.wallW[si][i] + out, x = X[i] + NX[i] * side * d, z = Y[i] + NY[i] * side * d;
+      for (let j = 0; j < N; j++) if (circ(i, j) * SP > 14 && Math.hypot(X[j] - x, Y[j] - z) < room) return null;
+      return { x, z, side, d };
+    };
+    const used = [];
+    const free = i => used.every(u => circ(u, i) * SP > 25) && T.labels.every(l => circ(l.i, i) * SP > 8);
+    J.boards.forEach((b, k) => {
+      const want = Math.round((k + 0.35) * N / J.boards.length);
+      for (let o = 0; o < N / 2; o++) for (const i of [(want + o) % N, (want - o + N) % N]) for (const si of [0, 1]) {
+        if (!free(i)) continue;
+        const q = clearAt(i, si, 1.0, 5.5);
+        if (!q) continue;
+        sign(b, q.x, q.z, HT[i]); used.push(i); return;
+      }
+    });
+    if (J.crash && T.tightest) {
+      const l = T.tightest, si = l.side > 0 ? 1 : 0, q = clearAt(l.i, si, 0.8, 0) || clearAt(l.i, si, 0.8, 0);
+      sign(J.crash, q.x, q.z, HT[l.i], 4.2);
+    }
+    // podium by the start straight: Zazo on top, Hugo second, Filipe… not on it
+    for (let back = 18; back < 60; back += 2) {
+      const i = sToPoint(-back * KS * 1.6, 0).i;
+      let q = null; for (const si of [0, 1]) if (!q) q = clearAt(i, si, 4.5, 7);
+      if (!q) continue;
+      const grp = new THREE.Group(), h = Math.atan2(T.TY[i], T.TX[i]);
+      grp.position.set(q.x, HT[i], q.z); grp.rotation.y = -h;
+      const stepMat = new THREE.MeshLambertMaterial({ color: '#e6e9ee' });
+      for (const [x, hgt, txt] of [[0, 1.5, ['ZAZO 👑', '1º · SEMPRE', '#ffc83d']], [-1.7, 1.0, ['HUGO', '2º · O DO MEIO', '#c9d1da']], [1.7, 0.6, ['FILIPE?', 'NÃO. DNF.', '#ff6fa3']]]) {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(1.6, hgt, 1.4), stepMat); b.position.set(x, hgt / 2, 0); grp.add(b);
+        const wp = new THREE.Vector3(x, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), -h).add(grp.position);
+        sign(txt, wp.x, wp.z, HT[i] + hgt - 0.2, 2.6);
+      }
+      scene.add(grp);
+      break;
+    }
+  }
   // braking-distance boards (white board, black number, facing the approaching cars)
   {
     const texs = {}, white = new THREE.MeshLambertMaterial({ color: '#f2f2f2' }), postMat = new THREE.MeshLambertMaterial({ color: '#7d848d' });
@@ -2867,7 +2953,16 @@ function showResults() {
   const raceNo = cup ? cup.race + 1 : 0;
   document.getElementById('resSub').textContent = `${cup ? `Cup race ${raceNo}/${CUP_TRACKS.length} · ` : ''}${isChaos() ? 'Chaos · ' : ''}${cfg.laps} lap${cfg.laps > 1 ? 's' : ''} · ${TRACK.full} · ${order.length > 1 ? win.name + ' wins!' : 'race complete'}`;
   const rec = cars.find(c => c.newRecord);
-  document.getElementById('resBanner').textContent = rec ? `New track record by ${rec.name}: ${fmt(record.t)}` : `Fastest lap: ${cars[session.bestBy] ? cars[session.bestBy].name : '-'} · ${fmt(session.bestLap)}`;
+  let banner = rec ? `New track record by ${rec.name}: ${fmt(record.t)}` : `Fastest lap: ${cars[session.bestBy] ? cars[session.bestBy].name : '-'} · ${fmt(session.bestLap)}`;
+  if (TRACK.jokes && order.length > 1) {
+    const nm = c => c.name.trim().toLowerCase(), j = [];
+    const zz = order.find(c => /zazo/.test(nm(c))), hu = order.find(c => nm(c) === 'hugo'), fi = order.find(c => nm(c) === 'filipe');
+    if (zz) j.push(zz === win ? '👑 Zazo, Rei de Chaves.' : 'Zazo não ganhou?! Recontagem já.');
+    if (hu) j.push(hu === win ? 'Hugo em P1?! Foi sorte.' : `Hugo em P${order.indexOf(hu) + 1}. Nem bom nem mau.`);
+    if (fi) j.push(fi === order[order.length - 1] ? 'Filipe em último. Nada de novo.' : `Filipe em P${order.indexOf(fi) + 1}?! Alguém chame o VAR.`);
+    if (j.length) banner += '  ·  ' + j.join(' ');
+  }
+  document.getElementById('resBanner').textContent = banner;
   const grid = document.getElementById('resGrid'), box = document.getElementById('cupBox'), pod = document.getElementById('podium');
   grid.classList.toggle('cup', !!cup);
   document.getElementById('raceHead').style.display = cup ? '' : 'none';
