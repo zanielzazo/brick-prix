@@ -33,7 +33,7 @@
   .sub { color:var(--dim); margin-top:6px; font-size:14px; letter-spacing:.03em; }
   .top { display:flex; gap:24px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
   #menuMap { width:250px; height:160px; }
-  .players { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
+  .players { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px; }
   .pcard { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:rgba(255,255,255,.03); border-top:4px solid var(--pc,#e10600); }
   .pcard.off { opacity:.35; pointer-events:none; }
   .recgrid { display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:6px; }
@@ -52,7 +52,7 @@
   .keys { font-size:13px; color:var(--dim); line-height:1.7; }
   kbd { display:inline-block; min-width:22px; padding:1px 6px; border:1px solid rgba(255,255,255,.25); border-bottom-width:2px;
     border-radius:4px; font:600 12px "Segoe UI",system-ui,sans-serif; color:var(--txt); text-align:center; background:#15181e; }
-  .opts { display:flex; gap:26px; flex-wrap:wrap; margin-top:16px; align-items:center; }
+  .opts { display:flex; gap:12px 26px; flex-wrap:wrap; margin-top:14px; align-items:center; }
   .opt { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--dim); letter-spacing:.08em; text-transform:uppercase; }
   .seg { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button { background:transparent; border:0; color:var(--txt); padding:7px 13px; font:600 14px inherit; cursor:pointer; font-family:inherit; }
@@ -103,7 +103,7 @@
           <input id="name0" maxlength="14" placeholder="Your name (required)" autocomplete="off">
           <div class="swatches" id="sw0"></div>
           <div class="keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake / reverse · <kbd>A</kbd><kbd>D</kbd> steer<br><kbd>Space</kbd> ERS boost · <kbd>C</kbd> change camera · or gamepad 1</div>
-          <div class="solo-note" id="soloNote">Single player: the arrow keys work too. In Hot lap press <kbd>R</kbd> to restart the run, <kbd>G</kbd> to switch ghost (record / my best / off).</div>
+          <div class="solo-note" id="soloNote">Arrow keys work too · Hot lap: <kbd>R</kbd> restart, <kbd>G</kbd> ghost</div>
         </div>
         <div class="pcard" id="pc1">
           <label>Player 2</label>
@@ -120,6 +120,7 @@
         <div class="opt" id="lapsOpt">Laps <div class="seg" id="lapsSeg"></div></div>
         <div class="opt">Camera <div class="seg" id="camSeg"></div></div>
         <div class="opt">Handling <div class="seg" id="handSeg"></div></div>
+        <div class="opt" id="cpuOpt">CPU <div class="seg" id="cpuSeg"></div><div class="seg" id="cpuLvlSeg"></div></div>
       </div>
       <div class="solo-note" id="ghostInfo" style="display:block;margin-top:10px"></div>
       <div class="go">
@@ -152,6 +153,7 @@
         <div><b>Handling</b> – F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it); Arcade is forgiving. Records are kept separately.</div>
         <div><b>Track limits</b> – all four wheels past the kerb deletes that lap; after 3 warnings each one costs +5 s. Cut a corner or chicane and you must slow down to give the time back. Grass is slow; cut the infield and you're put back on track.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
+        <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records.</div>
         <div><b>Chaos</b> – mystery boxes on the straights give you Turbo Brick (boost), Oil Slick (drop behind), Loose Tyre (rolls ahead) or Safety Car (slows the leader). The boost key fires your item; whoever is behind gets better items.</div>
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · gamepads work too (triggers, stick, <kbd>Y</kbd> camera).</div>
       </div>
@@ -724,7 +726,7 @@ const anyKey = list => list.some(k => keys.has(k));
 let padPrev = [{}, {}];
 function getPads() { try { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean); } catch (e) { return []; } }
 function readInput(pid) {
-  const solo = cars.length === 1;
+  const solo = isSolo();
   const k = solo ? { u: KEYMAP[0].u.concat(KEYMAP[1].u), d: KEYMAP[0].d.concat(KEYMAP[1].d), l: KEYMAP[0].l.concat(KEYMAP[1].l), r: KEYMAP[0].r.concat(KEYMAP[1].r), b: KEYMAP[0].b.concat(KEYMAP[1].b) } : KEYMAP[pid];
   const inp = { throttle: anyKey(k.u) ? 1 : 0, brake: anyKey(k.d) ? 1 : 0, steer: (anyKey(k.r) ? 1 : 0) - (anyKey(k.l) ? 1 : 0), boost: anyKey(k.b), analog: false };
   const pads = getPads(), pad = solo ? pads[0] || pads[1] : pads[pid];
@@ -764,7 +766,7 @@ let session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Inf
 let gridFlip = Math.random() < 0.5;
 const cfg = {
   laps: store.get('laps', 3), cam: (v => v === 'chase' ? 'rear' : v)(store.get('cam3d', 'onboard')),   // old 'chase' setting → rear cam
-  players: store.get('players', 2), mode: store.get('mode', 'race'), handling: store.get('handling', 'f1'),
+  players: store.get('players', 2), mode: store.get('mode', 'race'), cpu: store.get('cpu', 3), cpuLevel: store.get('cpuLevel', 'medium'), handling: store.get('handling', 'f1'),
   ghost: (v => v === true ? 'record' : v === false ? 'off' : v)(store.get('ghost', 'record')),   // old on/off setting → record/off
   names: store.get('names', ['Player 1', 'Player 2']), colors: store.get('colors', [0, 3]),
 };
@@ -785,6 +787,69 @@ function makeCar(id) {
     item: null, itemCount: 0, rollT: 0, rollItem: null, prevBoost: false, turboT: 0, spinT: 0, spinDir: 1, scT: 0, scV: 0,
   };
 }
+// ---------------------------------------------------------------- CPU drivers
+// They drive the same physics as you: a speed target from the track's speed profile (scaled by
+// skill), a racing line through the corners, moving aside to pass slower cars, mild catch-up
+// towards the human players, and sensible item use in Chaos.
+const CPU_NAMES = ['Rusty Bolt', 'Turbo Tina', 'Axel Grip', 'Penny Pitstop', 'Dash Deluca', 'Clutch Carla', 'Max Torque'];
+const CPU_COLORS = [
+  { c: '#8e44ad', d: '#2c0f3a', helmet: '#ffd400' }, { c: '#ff4fa3', d: '#5a1035', helmet: '#ffffff' },
+  { c: '#f2c200', d: '#3a2f00', helmet: '#111111' }, { c: '#f4f4f4', d: '#222222', helmet: '#e10600' },
+  { c: '#2a2a2a', d: '#e10600', helmet: '#ffd400' }, { c: '#00b4ff', d: '#003a55', helmet: '#ffffff' },
+];
+const CPU_LEVELS = { easy: 0.84, medium: 0.91, hard: 0.97 };
+function makeCpu(id, k, names) {
+  const c = makeCar(id);
+  c.cpu = true; c.name = names[k % names.length]; c.col = CPU_COLORS[k % CPU_COLORS.length];
+  c.skill = (CPU_LEVELS[cfg.cpuLevel] || 0.91) + (Math.random() - 0.5) * 0.03;
+  c.lane = 0; c.laneT = 0; c.itemT = 0; c.stuckT = 0; c.camMode = 'rear';
+  return c;
+}
+function cpuItem(c) {
+  if (!isChaos() || !c.item || c.rollT > 0) { c.itemT = 0; return false; }
+  c.itemT += STEP;
+  if (c.prevBoost) return false;
+  const it = c.item, others = cars.filter(o => o !== c && !o.finished);
+  let fire = false;
+  if (it === 'sc') fire = c.itemT > 1;
+  else if (it === 'turbo' || it === 'triple') fire = c.itemT > 0.6 && c.spinT <= 0 && (T.vProf ? T.vProf[(c.ti + 20) % T.N] > 70 : true);
+  else if (it === 'oil') fire = others.some(o => c.prog - o.prog > 5 && c.prog - o.prog < 45) || c.itemT > 8;
+  else if (it === 'tyre') fire = others.some(o => o.prog - c.prog > 10 && o.prog - c.prog < 160) || c.itemT > 10;
+  if (fire) c.itemT = 0;
+  return fire;
+}
+function cpuInput(c) {
+  const v = Math.hypot(c.vx, c.vy);
+  // unstick: crawling for a while (spun into a wall, facing the wrong way) → back on track
+  if (state === 'race' && !c.finished) {
+    c.stuckT = v < 3 ? c.stuckT + STEP : 0;
+    if (c.stuckT > 2.5) { const p = sToPoint(c.s, 0); c.x = p.x; c.y = p.y; c.h = p.h; c.vx = c.vy = 0; c.ti = p.i; c.ghost = 2; c.stuckT = 0; }
+  }
+  let g = c.skill;
+  const hs = humans().filter(h => !h.finished);
+  if (hs.length) {
+    const best = hs.reduce((a, b) => a.prog > b.prog ? a : b);
+    g += clamp(-(c.prog - best.prog) / 4000, -0.05, 0.04) * (isChaos() ? 1.5 : 1);
+  }
+  const ahead = 6 + v * 0.45;
+  let ks = 0; for (let d = ahead - 10; d <= ahead + 30; d += 8) ks += T.K[sToPoint(c.s + d, 0).i]; ks /= 6;
+  let lat = clamp(ks * 600, -3.5, 3.5);
+  const myLat = lateralOf(c);
+  for (const o of cars) {
+    if (o === c || o.ghost > 0) continue;
+    const dp = o.prog - c.prog;
+    if (dp > 0 && dp < 28 && Math.abs(lateralOf(o) - myLat) < 3 && o.vf < c.vf + 3) { c.lane = lateralOf(o) > 0 ? -4.2 : 4.2; c.laneT = 2; }
+  }
+  if (c.laneT > 0) { c.laneT -= STEP; lat = c.lane; }
+  const la = sToPoint(c.s + ahead, lat);
+  let ang = Math.atan2(la.y - c.y, la.x - c.x) - c.h;
+  while (ang > Math.PI) ang -= 2 * Math.PI; while (ang < -Math.PI) ang += 2 * Math.PI;
+  const vt = (T.vProf ? T.vProf[(c.ti + 2) % T.N] : 60) * Math.sqrt(g) * (c.laneT > 0 ? 0.97 : 1);
+  return { throttle: c.vf < vt - 0.5 ? 1 : 0, brake: c.vf > vt + 1.5 ? 1 : 0, steer: clamp(ang * 4, -1, 1), boost: cpuItem(c), analog: true };
+}
+function standings() {                       // finished cars by place, then everyone else by progress
+  return [...cars].sort((a, b) => (a.finished && b.finished) ? a.place - b.place : a.finished ? -1 : b.finished ? 1 : b.prog - a.prog);
+}
 function say(c, text, col = '#fff', dur = 2.2) { c.msg = text; c.msgCol = col; c.msgT = dur; }
 
 function placeCar(c, slot) {
@@ -793,7 +858,8 @@ function placeCar(c, slot) {
   c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = s; c.prog = s - T.L; c.alt = p.alt;
 }
 
-const isSolo = () => cars.length === 1;
+const humans = () => cars.filter(c => !c.cpu);               // humans are always first in `cars`
+const isSolo = () => humans().length === 1;
 const isHot = () => cars.length === 1 && cfg.mode === 'hot';
 const isChaos = () => cfg.mode === 'chaos' && cars.length > 0 && state !== 'menu';
 
@@ -807,11 +873,12 @@ const ITEM_SHORT = { turbo: 'TURBO', triple: 'TURBO', oil: 'OIL', tyre: 'TYRE', 
 function placeBoxes() {
   boxes = [];
   const cands = T.zones.map(z => ((T.S[z.a] - 170) % T.L + T.L) % T.L);
-  const rows = [];
-  for (const f of [0.2, 0.52, 0.82]) {
-    const want = f * T.L;
+  // a row about every 550 m; each one snaps to a straight before a braking zone when one is close
+  const rows = [], n = Math.max(4, Math.round(T.L / 550));
+  for (let k = 0; k < n; k++) {
+    const want = (k + 0.5) * T.L / n;
     let best = want, bd = 1e9;
-    for (const s0 of cands) { const d = Math.abs(s0 - want); if (d < bd && d < T.L * 0.15 && rows.every(r => Math.abs(r - s0) > 500)) { bd = d; best = s0; } }
+    for (const s0 of cands) { const d = Math.abs(s0 - want); if (d < bd && d < 180 && rows.every(r => Math.abs(r - s0) > 300)) { bd = d; best = s0; } }
     rows.push(best);
   }
   for (const s0 of rows) for (const lat of [-4.5, 0, 4.5]) {
@@ -874,7 +941,7 @@ function chaosCar(c, inp, dt) {           // per car, every physics step
   c.prevBoost = inp.boost;
   for (const b of boxes) {
     if (!b.active || (c.x - b.x) ** 2 + (c.y - b.y) ** 2 > 2.6 * 2.6) continue;
-    b.active = false; b.respawn = 3;
+    b.active = false; b.respawn = 2;
     for (let k = 0; k < 14; k++) parts.push({ x: b.x, y: b.y, alt: b.alt + 1.3, vx: (Math.random() - .5) * 14, vy: (Math.random() - .5) * 14, va: Math.random() * 6, life: 0.6, max: 0.6, size: 0.5, kind: 'ers' });
     if (!c.item && c.rollT <= 0) { c.rollT = 1.0; c.rollItem = pickItem(c); AU.beep(660, 0.08, 0.1); }
   }
@@ -961,9 +1028,18 @@ function startRace(rematch) {
   AU.init();
   if (rematch) gridFlip = !gridFlip;
   const solo = cfg.players === 1;
-  cars = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
-  if (solo) { if (cfg.mode === 'hot') placeHot(cars[0]); else placeCar(cars[0], 0); }
-  else { placeCar(cars[0], gridFlip ? 1 : 0); placeCar(cars[1], gridFlip ? 0 : 1); }
+  const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
+  const nCpu = solo && cfg.mode === 'hot' ? 0 : clamp(cfg.cpu | 0, 0, 5);
+  const names = CPU_NAMES.slice().sort(() => Math.random() - 0.5), cpus = [];
+  for (let k = 0; k < nCpu; k++) cpus.push(makeCpu(hs.length + k, k, names));
+  cars = hs.concat(cpus);
+  if (solo && cfg.mode === 'hot') placeHot(cars[0]);
+  else {
+    const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
+    // Chaos: humans start at the back (more boxes, better items); Race: random grid
+    const grid = cfg.mode === 'chaos' ? shuffle(cpus).concat(shuffle(hs)) : shuffle(cars);
+    grid.forEach((c, slot) => placeCar(c, slot));
+  }
   parts = []; finishOrder = []; resultsAt = 0;
   hazards = []; boxes = [];
   if (cfg.mode === 'chaos') placeBoxes();
@@ -1196,7 +1272,7 @@ function step(dt) {
       cars.forEach(c => { c.lapStart = c.sectorStart = simTime; c.timing = true; say(c, 'GO!', GREEN, 1.2); });
     } else locked = true;
   }
-  const inputs = cars.map((c, i) => readInput(i));
+  const inputs = cars.map((c, i) => c.cpu ? cpuInput(c) : readInput(i));
   cars.forEach((c, i) => {
     physics(c, inputs[i], dt, locked);
     const s0 = c.s, s1 = trackLocal(c);
@@ -1210,9 +1286,9 @@ function step(dt) {
       const p = sToPoint(c.s, 0);
       c.x = p.x; c.y = p.y; c.h = p.h; c.vx = c.vy = 0; c.ti = p.i; c.ghost = 2.5; c.steer = 0;
       c.off = null;
-      if (!c.finished && !isChaos()) { c.lapInvalid = true; strike(c, 'CUT – PUT BACK ON TRACK'); }
+      if (!c.finished && !isChaos() && !c.cpu) { c.lapInvalid = true; strike(c, 'CUT – PUT BACK ON TRACK'); }
     }
-    if (!c.finished && !isChaos()) trackLimits(c, ds, dt);
+    if (!c.finished && !isChaos() && !c.cpu) trackLimits(c, ds, dt);
     const ti = c.ti, sp = Math.hypot(c.vx, c.vy);
     if (sp > 6 && (c.vx * T.TX[ti] + c.vy * T.TY[ti]) < -0.5 * sp) { c.wrongT += dt; if (c.wrongT > 1) say(c, 'WRONG WAY', '#ff5050', 0.3); }
     else c.wrongT = 0;
@@ -1239,11 +1315,14 @@ function step(dt) {
       if (c.prog >= (c.lapsDone + 1) * T.L) lapDone(c);
     }
 
-    const other = cars[1 - i];
+    // DRS: within 1 s of the car directly ahead (practice rules when you're alone on track)
+    let other = null;
+    for (const o of cars) if (o !== c && !o.finished && o.prog > c.prog && (!other || o.prog < other.prog)) other = o;
     if (!isChaos()) for (const z of T.drs) if (crossed(s0, s1, z.det)) {
       c.drsZone = z; c.drsShut = false;
-      if (!other) c.drsOK = true;            // practice rules when alone: DRS in every zone
-      else { const g = gapTo(c, other); c.drsOK = c.lapsDone >= 1 && g != null && g > 0 && g < 1.0 && !other.finished; }
+      if (cars.length === 1) c.drsOK = true;
+      else if (!other) c.drsOK = false;
+      else { const g = gapTo(c, other); c.drsOK = c.lapsDone >= 1 && g != null && g > 0 && g < 1.0; }
       if (c.drsOK) say(c, 'DRS ENABLED', GREEN, 1.5);
     }
     const z = c.drsZone;
@@ -1252,20 +1331,24 @@ function step(dt) {
     if (inDrs && c.brakeIn > 0.2) c.drsShut = true;
     c.drs = !isChaos() && c.drsOK && inDrs && !c.drsShut;
   });
-  if (cars.length === 2) cars.forEach((c, i) => {
-    const o = cars[1 - i];
-    const hx = Math.cos(c.h), hy = Math.sin(c.h), rx = o.x - c.x, ry = o.y - c.y;
-    const along = rx * hx + ry * hy, lat = Math.abs(rx * hy - ry * hx);
-    const sp = Math.hypot(c.vx, c.vy);
-    const target = (along > 4 && along < 50 && lat < 2.4 + along * 0.04 && sp > 28 && o.ghost <= 0) ? (1 - along / 50) : 0;
+  for (const c of cars) {                       // slipstream behind whichever car is in front
+    const hx = Math.cos(c.h), hy = Math.sin(c.h), sp = Math.hypot(c.vx, c.vy);
+    let target = 0;
+    for (const o of cars) {
+      if (o === c || o.ghost > 0) continue;
+      const rx = o.x - c.x, ry = o.y - c.y, along = rx * hx + ry * hy, lat = Math.abs(rx * hy - ry * hx);
+      if (along > 4 && along < 50 && lat < 2.4 + along * 0.04 && sp > 28) target = Math.max(target, 1 - along / 50);
+    }
     c.tow += (target - c.tow) * Math.min(1, dt * 3);
-  });
-  if (cars.length === 2) collideCars(cars[0], cars[1]);
+  }
+  for (let a = 0; a < cars.length; a++) for (let b = a + 1; b < cars.length; b++) collideCars(cars[a], cars[b]);
   cars.forEach(c => {
     if (c.ghost > 0) c.ghost -= dt; c.msgT -= dt; c.shake = Math.max(0, c.shake - dt * 2.5);
     if (c.turboT > 0) c.turboT -= dt; if (c.spinT > 0) c.spinT -= dt; if (c.scT > 0) c.scT -= dt;
   });
   if (isChaos() && state === 'race') chaosWorld(dt);
+  // once every human has finished, don't wait forever for a CPU that's stuck or a lap down
+  if (state === 'race' && !resultsAt && finishOrder.length && humans().every(h => h.finished)) resultsAt = simTime + 8;
   if (state === 'race' && resultsAt && simTime >= resultsAt) showResults();
   if (state !== 'menu') spawnFx(dt);
 }
@@ -1335,7 +1418,7 @@ function lapDone(c) {
     session.bestLap = lt; session.bestBy = c.id;
     if (c.lapsDone > 1 || cars.every(o => o.lapsDone <= 1)) say(c, 'FASTEST LAP  ' + fmt(lt), PURPLE, 2.6);
   } else if (pb) say(c, 'PERSONAL BEST  ' + fmt(lt), GREEN, 2.2);
-  if (!invalid && !isChaos() && (!record || lt < record.t)) {
+  if (!invalid && !isChaos() && !c.cpu && (!record || lt < record.t)) {
     record = { t: lt, name: c.name, d: new Date().toISOString().slice(0, 10) }; store.set(recordKey(), record);
     c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3);
   }
@@ -1552,7 +1635,7 @@ function buildGfx() {
   const chk = canvasTex(64, 512, (g, w, h) => { const q = 32; for (let y = 0; y < h / q; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * q, y * q, q, q); } });
   const lineMat = new THREE.MeshBasicMaterial({ color: '#eeeeee' });
   across(0, 0, 15, 2, new THREE.MeshLambertMaterial({ map: chk }));
-  for (let slot = 0; slot < 2; slot++) { const s = T.L - 9 - slot * 8 + 3.4, lat = slot % 2 ? 3.4 : -3.4; across(s, lat, 3.2, 0.25, lineMat); }
+  for (let slot = 0; slot < 8; slot++) { const s = T.L - 9 - slot * 8 + 3.4, lat = slot % 2 ? 3.4 : -3.4; across(s, lat, 3.2, 0.25, lineMat); }
   for (const z of T.drs) {
     across(z.from, 0, 15, 0.35, lineMat);
     for (let q = -6.75; q < 7.5; q += 1.5) across(z.det, q, 0.8, 0.35, lineMat);
@@ -1932,7 +2015,7 @@ function buildGfx() {
     syncCars(); syncParts(); syncChaos();
     lightMats.forEach((m, i) => m.color.set(state === 'countdown' && i < cd.lights ? '#ff1a1a' : '#2a0707'));
     const cams = [];
-    cars.forEach((c, i) => {
+    humans().forEach((c, i) => {
       const vp = vps[i], cam = cameras[i], aspect = vp.w / vp.h;
       cam.aspect = aspect;
       if (!paused) {
@@ -1955,7 +2038,7 @@ function buildGfx() {
 
 // ---------------------------------------------------------------- HUD (2D overlay)
 function viewports() {
-  if (state === 'menu' || cars.length === 1) return [{ x: 0, y: 0, w: W, h: H }];
+  if (state === 'menu' || humans().length === 1) return [{ x: 0, y: 0, w: W, h: H }];
   if (W >= H) return [{ x: 0, y: 0, w: Math.floor(W / 2) - 1, h: H }, { x: Math.floor(W / 2) + 1, y: 0, w: W - Math.floor(W / 2) - 1, h: H }];
   return [{ x: 0, y: 0, w: W, h: Math.floor(H / 2) - 1 }, { x: 0, y: Math.floor(H / 2) + 1, w: W, h: H - Math.floor(H / 2) - 1 }];
 }
@@ -1982,21 +2065,21 @@ function drawTags(vp, cam, focus) {
 }
 
 function drawHud(vp, c) {
-  const other = cars[1 - c.id];
+  const order = standings(), rank = order.indexOf(c);
   const sc = clamp(Math.min(vp.w / 880, vp.h / 760), 0.72, 1.25);
   ctx.save(); ctx.translate(vp.x, vp.y); ctx.scale(sc, sc);
   const w = vp.w / sc, h = vp.h / sc;
-  const pos = c.finished ? c.place : !other ? 1 : (other.finished ? 2 : (c.prog >= other.prog ? 1 : 2));
+  const pos = rank + 1;
   panel(14, 14, 250, 74);
   ctx.fillStyle = c.col.c; ctx.beginPath(); ctx.roundRect(14, 14, 66, 74, [8, 0, 0, 8]); ctx.fill();
   txt(isHot() ? 'TT' : 'P' + pos, 47, 63, F(800, 34), c.col.c === '#d4dae0' ? '#111' : '#fff', 'center');
   txt(c.name.toUpperCase(), 92, 38, F(700, 15));
   const lapNo = Math.min(cfg.laps, c.lapsDone + 1);
-  txt(isHot() ? (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}`, 92, 60, F(600, 14), '#c8ccd2');
+  txt(isHot() ? (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
   if (c.penalty) txt('+' + c.penalty + 's PEN', 256, 60, F(800, 12), '#ff5050', 'right');
   else if (c.warnings) txt('⚠ ' + c.warnings + '/3', 256, 60, F(700, 12), YELLOW, 'right');
-  if (state === 'race' && !c.finished && other) {
-    const g = gapTo(c, other);
+  if (state === 'race' && !c.finished && order.length > 1) {
+    const g = rank > 0 ? gapTo(c, order[rank - 1]) : (order[1] && !order[1].finished ? -gapTo(order[1], c) : null);
     if (g != null) txt(g > 0 ? 'INT ' + fmtGap(g) : 'LEAD ' + Math.abs(g).toFixed(3), 92, 79, F(600, 13), g > 0 ? '#ff9b9b' : '#9bffb8');
   }
   if (state !== 'countdown') {
@@ -2165,8 +2248,8 @@ function render(dt) {
   if (!GFX) { ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, W, H); return; }
   const vps = viewports();
   const cams = GFX.render(dt, vps);
-  if (state === 'menu') { AU.update(cars, false); return; }
-  cars.forEach((c, i) => { drawTags(vps[i], cams && cams[i], c); drawHud(vps[i], c); });
+  if (state === 'menu') { AU.update(humans(), false); return; }
+  humans().forEach((c, i) => { drawTags(vps[i], cams && cams[i], c); drawHud(vps[i], c); });
   ctx.fillStyle = '#000';
   if (!isSolo()) { if (W >= H) ctx.fillRect(W / 2 - 1, 0, 2, H); else ctx.fillRect(0, H / 2 - 1, W, 2); }
   if (!isHot() && (state === 'countdown' || (state === 'race' && simTime - raceStart < 1.2))) drawLights();
@@ -2179,7 +2262,7 @@ function render(dt) {
     const wait = finishOrder.length && cars.some(c => !c.finished);
     if (wait) txt('Waiting for ' + cars.find(c => !c.finished).name + ' to take the chequered flag…', W / 2, 30, F(600, 14), '#ddd', 'center');
   }
-  AU.update(cars, !paused && (state === 'race' || state === 'countdown'));
+  AU.update(humans(), !paused && (state === 'race' || state === 'countdown'));
 }
 
 // ---------------------------------------------------------------- results
@@ -2196,7 +2279,7 @@ function showResults() {
     else t = '+' + (total(c) - total(win)).toFixed(3) + 's';
     if (c.penalty) t += ` <small style="color:#ff6b6b">(incl. ${c.penalty}s pen.)</small>`;
     const fl = c.best === session.bestLap;
-    html += `<tr><td class="pos">P${i + 1}</td><td><span class="chip" style="background:${c.col.c}"></span>${esc(c.name)}</td>` +
+    html += `<tr><td class="pos">P${i + 1}</td><td><span class="chip" style="background:${c.col.c}"></span>${esc(c.name)}${c.cpu ? ' <small style="color:var(--dim)">CPU</small>' : ''}</td>` +
       `<td class="num">${t}</td><td class="num ${fl ? 'purple' : ''}">${fmt(c.best)}${fl ? ' ⏱' : ''}</td></tr>`;
   });
   document.getElementById('resTable').innerHTML = html;
@@ -2305,7 +2388,7 @@ async function claimDefaultLaps() {
   if (changed) { fetchOnline(); if (state === 'menu') refreshMenu(); }
 }
 async function uploadLap(c, lt, rec) {
-  if (!onlineOn() || isDefaultName(c.name)) return;
+  if (!onlineOn() || c.cpu || isDefaultName(c.name)) return;
   const name = c.name.trim().slice(0, 14), pbKey = `pb.${TRACK.id}.${cfg.handling}.${name.toLowerCase()}`;
   const pb = store.get(pbKey, 0);
   if (pb && lt >= pb) return;                     // only send personal bests
@@ -2399,7 +2482,7 @@ function refreshMenu() {
   document.getElementById('lapsOpt').style.display = hot ? 'none' : '';
   document.getElementById('ghostOpt').style.display = hot ? '' : 'none';
   document.getElementById('ghostInfo').innerHTML = chaos
-    ? '🎲 <b>Chaos</b>: drive through the <span style="color:#ffb347">? boxes</span> for Turbo Brick, Oil Slick, Loose Tyre or Safety Car, and fire it with your boost key (<kbd>Space</kbd> / <kbd>Enter</kbd>). No ERS, DRS or track-limit penalties; laps don\'t count for records.'
+    ? '🎲 <b>Chaos</b>: hit the <span style="color:#ffb347">? boxes</span> for Turbo, Oil, Tyre or Safety Car and fire it with your boost key. No ERS, DRS or penalties; laps don\'t count for records.'
     : hot
     ? '👻 <b>Ghost</b>: a see-through car replays the <span style="color:#ffc83d">track record</span> (from the online leaderboard) or <span style="color:#4fc8ff">your own best lap</span>. It starts when you cross the start line; <kbd>G</kbd> switches it while driving.'
     : '👻 Want to race a ghost of the track record? Choose <b>Players 1</b> → <b>Mode Hot lap</b>.';
@@ -2409,6 +2492,10 @@ function refreshMenu() {
   document.getElementById('startBtn').textContent = hot ? 'Start hot lap' : chaos ? 'Start chaos race' : 'Start race';
   seg('lapsSeg', [[1, '1'], [3, '3'], [5, '5'], [10, '10']], cfg.laps, v => { cfg.laps = v; store.set('laps', v); });
   seg('camSeg', [['onboard', 'Onboard'], ['rear', 'Rear cam'], ['tv', 'TV']], cfg.cam, v => { cfg.cam = v; store.set('cam3d', v); });
+  seg('cpuSeg', [[0, '0'], [1, '1'], [3, '3'], [5, '5']], cfg.cpu, v => { cfg.cpu = v; store.set('cpu', v); });
+  seg('cpuLvlSeg', [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']], cfg.cpuLevel, v => { cfg.cpuLevel = v; store.set('cpuLevel', v); });
+  document.getElementById('cpuOpt').style.display = hot ? 'none' : '';
+  document.getElementById('cpuLvlSeg').style.display = cfg.cpu ? '' : 'none';
   seg('handSeg', [['f1', 'F1'], ['arcade', 'Arcade']], cfg.handling, v => {
     cfg.handling = v; store.set('handling', v);
     T.boards = brakeBoards();               // braking points move with the car's performance

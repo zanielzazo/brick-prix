@@ -15,6 +15,7 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 - **2 players**: split screen, standing start, 1–10 laps
 - **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
 - **Chaos** (1 or 2 players): mystery **?** boxes on the straights give you a Turbo Brick, Oil Slick, Loose Tyre or Safety Car. Your boost key fires the item, and whoever is behind gets better items. No ERS, DRS or track-limit penalties; chaos laps don't count for records.
+- **CPU drivers**: add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos, in 1- or 2-player mode. They pass slower cars, use items in Chaos, and their laps don't count for records.
 - **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
 
