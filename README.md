@@ -14,6 +14,7 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 
 - **2 players**: split screen, standing start, 1–10 laps
 - **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
+- **Chaos** (1 or 2 players): mystery **?** boxes on the straights give you a Turbo Brick, Oil Slick, Loose Tyre or Safety Car. Your boost key fires the item, and whoever is behind gets better items. No ERS, DRS or track-limit penalties; chaos laps don't count for records.
 - **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
 
@@ -48,7 +49,7 @@ The **🏆 Records** screen on the menu has a tab for each circuit. Each tab sho
 | Red Bull Ring | 1:11.033 | 1:05.583 |
 | Silverstone | 1:41.775 | 1:33.775 |
 
-**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded.
+**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded.
 
 The online records use a free [Supabase](https://supabase.com) table (see [`supabase.sql`](supabase.sql)). The public key in the game can only read laps and add new ones; nobody can edit or delete laps, and impossible lap times are rejected. If the database can't be reached, the game falls back to the records in your own browser.
 
