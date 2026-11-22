@@ -2525,12 +2525,12 @@ function buildGfx() {
   // ---- aircraft over Graz: approaches and departures past the kart track (Graz Airport is next door)
   const PLANE_TYPES = {
     a380:   { len: 73, r: 3.6, rz: 1.18, span: 80, chord: 0.17, sweep: 0.58, eng: [0.3, 0.58], high: false, speed: 74, body: '#f4f6f8', tail: '#1f4e8c', w: 12 },
-    a320:   { len: 38, r: 2.0, rz: 1, span: 35, chord: 0.14, sweep: 0.45, eng: [0.34], high: false, speed: 68, body: '#f4f6f8', tail: '#c8102e', w: 26 },
-    aero:   { len: 38, r: 2.0, rz: 1, span: 35, chord: 0.14, sweep: 0.45, eng: [0.34], high: false, speed: 68, body: '#11406b', tail: '#41c6ba', logo: true, w: 14 },
+    a320:   { len: 38, r: 2.0, rz: 1, span: 35, chord: 0.14, sweep: 0.45, eng: [0.34], high: false, speed: 68, body: '#f4f6f8', tail: '#c8102e', w: 32 },
+    aero:   { len: 38, r: 2.0, rz: 1, span: 35, chord: 0.14, sweep: 0.45, eng: [0.34], high: false, speed: 68, body: '#11406b', tail: '#41c6ba', logo: 'body', w: 0 },   // (Aeroficial colours come from the liveries now)
     an124:  { len: 69, r: 3.5, rz: 1.1, span: 73, chord: 0.15, sweep: 0.5, eng: [0.3, 0.55], high: true, speed: 70, body: '#dfe3e6', tail: '#2b5aa8', w: 8 },
     an225:  { len: 84, r: 3.7, rz: 1.1, span: 88, chord: 0.15, sweep: 0.5, eng: [0.24, 0.44, 0.64], high: true, twin: true, speed: 70, body: '#eef0f2', tail: '#2b5aa8', stripe: '#f2c200', w: 8 },
     atr:    { len: 27, r: 1.4, rz: 1, span: 27, chord: 0.1, sweep: 0.04, eng: [0.3], high: true, prop: true, ttail: true, speed: 56, body: '#f4f6f8', tail: '#3d8bff', w: 14 },
-    a321:   { len: 44.5, r: 2.0, rz: 1, span: 35.8, chord: 0.13, sweep: 0.45, eng: [0.34], high: false, speed: 70, body: '#f4f6f8', tail: '#1f4e8c', w: 16 },
+    a321:   { len: 44.5, r: 2.0, rz: 1, span: 35.8, chord: 0.13, sweep: 0.45, eng: [0.34], high: false, speed: 70, body: '#f4f6f8', tail: '#1f4e8c', w: 24 },
     b777:   { len: 64, r: 3.1, rz: 1, span: 61, chord: 0.15, sweep: 0.55, eng: [0.33], high: false, speed: 75, body: '#f4f6f8', tail: '#0b8457', w: 10 },
     dash8:  { len: 32.8, r: 1.35, rz: 1, span: 28.4, chord: 0.09, sweep: 0.03, eng: [0.28], high: true, prop: true, ttail: true, speed: 58, body: '#f4f6f8', tail: '#c8102e', w: 8 },
     cessna: { len: 8.3, r: 0.62, rz: 1.1, span: 11, chord: 0.17, sweep: 0, eng: [], high: true, nose: true, speed: 48, body: '#f4f6f8', tail: '#c0392b', w: 12 },
@@ -2617,8 +2617,8 @@ function buildGfx() {
     let rr = Math.random() * tot, type = 'a320';
     for (const [k, P] of pool) { rr -= P.w; if (rr <= 0) { type = k; break; } }
     const P = PLANE_TYPES[type], jet = !P.prop && type !== 'cessna', lr = Math.random();
-    const liv = jet && lr < 0.24 ? AERO_LIVERIES[Math.floor(Math.random() * AERO_LIVERIES.length)]
-      : jet && /a32|b777/.test(type) && lr < 0.52 ? condorLivery()
+    const liv = jet && lr < 0.16 ? AERO_LIVERIES[Math.floor(Math.random() * AERO_LIVERIES.length)]
+      : jet && /a32|b777/.test(type) && lr < 0.68 ? condorLivery()      // about half of the A320s, A321s and 777s fly Condor
       : type === 'cessna' || /an1|an2/.test(type) ? null : LIVERIES[Math.floor(Math.random() * LIVERIES.length)];
     const cx = (T.minX + T.maxX) / 2, cy = (T.minY + T.maxY) / 2, r = Math.random(), small = type === 'cessna' || P.prop;
     let hdg, ox, oy, S0, S1, alt, kind, speedK = 1;
