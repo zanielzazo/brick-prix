@@ -19,7 +19,8 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
   - **Boost pads** (blue arrows) at corner exits and **jump ramps** (yellow and black) on the two fastest straights; you can drive around the ramps
   - **Drift boost**: hold throttle and brake together while steering. Blue sparks after 1 s and orange after 2 s; let go for a boost
   - **Weather** can change every lap: dry, rain (less grip) or a glitter storm
-- **CPU drivers**: add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos, in 1- or 2-player mode. They pass slower cars, use items in Chaos, and their laps don't count for records.
+- **CPU drivers**: add 1, 3 or 5 computer opponents to a race or Chaos, in 1- or 2-player mode. They pass slower cars, use items in Chaos, and their laps don't count for records. *Easy* drives about at the seeded record pace, *Medium* a bit faster, and *Hard* about as fast as the quickest human laps so far.
+- **🏆 Cup** (next to the tracks on the menu): race all five tracks in a row, Spa → Red Bull Ring → Monza → Silverstone → Algarve, with Race or Chaos rules. Points per race are 10-8-6-5-4-3-2, the same CPU drivers race the whole cup, and the final result has a podium.
 - **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
 

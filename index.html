@@ -76,6 +76,17 @@
   .pos { font-weight:800; font-size:22px; font-style:italic; }
   .purple { color:#c77dff; font-weight:700; }
   .banner { margin-top:12px; color:#c77dff; font-weight:700; }
+  .resgrid.cup { display:grid; grid-template-columns:1.35fr 1fr; gap:26px; align-items:start; }
+  .resgrid.cup td, .resgrid.cup th { padding:7px 6px; font-size:15px; }
+  .resgrid.cup th { font-size:11px; }
+  .resgrid.cup .pos { font-size:18px; }
+  .cuphead { margin-top:14px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); font-weight:700; }
+  td.pts { font-weight:800; font-variant-numeric:tabular-nums; }
+  td.gain { color:#2bd96b; font-weight:700; font-variant-numeric:tabular-nums; }
+  .podium { display:flex; align-items:flex-end; justify-content:center; gap:10px; margin-top:14px; }
+  .podium div { width:150px; text-align:center; border-radius:8px 8px 0 0; padding:8px 6px; color:#fff; font-weight:800; font-style:italic; }
+  .podium small { display:block; font-weight:600; font-style:normal; opacity:.9; margin-top:2px; }
+  @media (max-width:760px) { .resgrid.cup { grid-template-columns:1fr; } }
   @media (max-width:640px) { .players { grid-template-columns:1fr; } h1 { font-size:34px; } }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -153,7 +164,7 @@
         <div><b>Handling</b> – F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it); Arcade is forgiving. Records are kept separately.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
-        <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records.</div>
+        <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records. <b>🏆 Cup</b> (next to the tracks): all five tracks in a row, points 10-8-6-5-4-3-2.</div>
         <div><b>Chaos</b> – mystery boxes give you Turbo Brick, Oil Slick, Loose Tyre, Safety Car (slows the leader), Local Shower (rain on the car ahead), Phantom (drive through anything), Brick Wall (drop behind) or Pit Stop (fixes you). The boost key fires it; whoever is behind gets better items. Blue pads boost you, yellow ramps launch you. <b>Drift</b>: hold throttle + brake while steering – blue sparks after 1 s, orange after 2 s – and let go for a boost. The weather changes every lap.</div>
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · gamepads work too (triggers, stick, <kbd>Y</kbd> camera).</div>
       </div>
@@ -194,9 +205,10 @@
   <div class="panel" style="width:min(640px,100%)">
     <div class="checker"></div>
     <div class="inner">
-      <h1 style="font-size:36px">RACE <span>RESULT</span></h1>
+      <h1 style="font-size:36px" id="resTitle">RACE <span>RESULT</span></h1>
       <div class="sub" id="resSub"></div>
-      <table id="resTable"></table>
+      <div id="podium"></div>
+      <div class="resgrid" id="resGrid"><div><div class="cuphead" id="raceHead" style="display:none">This race</div><table id="resTable"></table></div><div id="cupBox"></div></div>
       <div class="banner" id="resBanner"></div>
       <div class="go">
         <button class="btn" id="rematchBtn">Rematch (Enter)</button>
@@ -356,12 +368,14 @@ function loadTrackData(id) {
 // pass backwards, acceleration pass forwards), find the big stops and count down 150/100/50 m
 // to the end of each braking zone, on the outside of the corner that follows.
 function brakeBoards() {
-  const N = T.N, v = new Float64Array(N);
+  const N = T.N, v = new Float64Array(N), vc = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     let k = 0; for (let q = -3; q <= 3; q++) k += Math.abs(T.K[(i + q + N) % N]); k /= 7;
     const R = 1 / (k + 1e-6), den = 1 - G * hd().latB * R;
     v[i] = den <= 0 ? 95 : Math.min(95, Math.sqrt(G * hd().latA * R / den));
+    vc[i] = R;
   }
+  T.Rc = vc;                       // corner radius per sample, for the CPU speed profiles
   const pb = hd().profBrake;
   for (let n = 2 * N; n > 0; n--) { const i = n % N, j = (i + 1) % N; v[i] = Math.min(v[i], Math.sqrt(v[j] ** 2 + 2 * pb * segLen(i))); }
   for (let n = 1; n <= 2 * N; n++) { const i = n % N, j = (i - 1 + N) % N; v[i] = Math.min(v[i], Math.sqrt(v[j] ** 2 + 2 * 9 * segLen(j))); }
@@ -768,7 +782,7 @@ const cfg = {
   laps: store.get('laps', 3), cam: (v => v === 'chase' ? 'rear' : v)(store.get('cam3d', 'onboard')),   // old 'chase' setting → rear cam
   players: store.get('players', 2), mode: store.get('mode', 'race'), cpu: store.get('cpu', 3), cpuLevel: store.get('cpuLevel', 'medium'), handling: store.get('handling', 'f1'),
   ghost: (v => v === true ? 'record' : v === false ? 'off' : v)(store.get('ghost', 'record')),   // old on/off setting → record/off
-  names: store.get('names', ['Player 1', 'Player 2']), colors: store.get('colors', [0, 3]),
+  names: store.get('names', ['Player 1', 'Player 2']), colors: store.get('colors', [0, 3]), cup: store.get('cup', false),
 };
 let record = null;
 
@@ -798,11 +812,14 @@ const CPU_COLORS = [
   { c: '#f2c200', d: '#3a2f00', helmet: '#111111' }, { c: '#f4f4f4', d: '#222222', helmet: '#e10600' },
   { c: '#2a2a2a', d: '#e10600', helmet: '#ffd400' }, { c: '#00b4ff', d: '#003a55', helmet: '#ffffff' },
 ];
-const CPU_LEVELS = { easy: 0.84, medium: 0.91, hard: 0.97 };
+// skill: share of its grip it uses in corners · grip: hidden grip bonus · brake: share of the real braking force
+// (Easy ≈ the seeded record laps, Hard ≈ the fastest human laps so far)
+const CPU_LEVELS = { easy: { skill: 0.93, grip: 1.0, brake: 0.8 }, medium: { skill: 0.95, grip: 1.15, brake: 0.85 }, hard: { skill: 0.96, grip: 1.3, brake: 0.9 } };
 function makeCpu(id, k, names) {
   const c = makeCar(id);
   c.cpu = true; c.name = names[k % names.length]; c.col = CPU_COLORS[k % CPU_COLORS.length];
-  c.skill = (CPU_LEVELS[cfg.cpuLevel] || 0.91) + (Math.random() - 0.5) * 0.03;
+  const lv = CPU_LEVELS[cfg.cpuLevel] || CPU_LEVELS.medium;
+  c.skill = lv.skill + (Math.random() - 0.5) * 0.02; c.gripK = lv.grip * (1 + (Math.random() - 0.5) * 0.04); c.brakeK = lv.brake;
   c.lane = 0; c.laneT = 0; c.itemT = 0; c.stuckT = 0; c.camMode = 'rear';
   return c;
 }
@@ -824,6 +841,20 @@ function cpuItem(c) {
   if (fire) c.itemT = 0;
   return fire;
 }
+// A CPU's own speed target: corner speeds scaled by its skill, and braking as late as the car
+// really can (brakeK = share of the real braking force it dares to use).
+function cpuProfile(q, bk, k) {     // q: share of its grip it uses in corners, k: its grip bonus
+  const N = T.N, H = hd(), v = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const R = T.Rc[i], den = 1 - q * G * H.latB * R;
+    v[i] = den <= 0 ? 200 : Math.min(200, Math.sqrt(q * G * H.latA * R / den));
+  }
+  for (let n = 2 * N; n > 0; n--) {
+    const i = n % N, j = (i + 1) % N, a = G * (H.brkA + H.brkB * v[j] * v[j]) * bk * k;
+    v[i] = Math.min(v[i], Math.sqrt(v[j] * v[j] + 2 * a * segLen(i)));
+  }
+  return v;
+}
 function cpuInput(c) {
   const v = Math.hypot(c.vx, c.vy);
   // unstick: crawling for a while (spun into a wall, facing the wrong way) → back on track
@@ -835,7 +866,7 @@ function cpuInput(c) {
   const hs = humans().filter(h => !h.finished);
   if (hs.length) {
     const best = hs.reduce((a, b) => a.prog > b.prog ? a : b);
-    g += clamp(-(c.prog - best.prog) / 4000, -0.05, 0.04) * (isChaos() ? 1.5 : 1);
+    g += isChaos() ? clamp(-(c.prog - best.prog) / 4000, -0.05, 0.04) * 1.5 : clamp(-(c.prog - best.prog) / 4000, -0.015, 0.03);
   }
   const ahead = 6 + v * 0.45;
   let ks = 0; for (let d = ahead - 10; d <= ahead + 30; d += 8) ks += T.K[sToPoint(c.s + d, 0).i]; ks /= 6;
@@ -850,7 +881,8 @@ function cpuInput(c) {
   const la = sToPoint(c.s + ahead, lat);
   let ang = Math.atan2(la.y - c.y, la.x - c.x) - c.h;
   while (ang > Math.PI) ang -= 2 * Math.PI; while (ang < -Math.PI) ang += 2 * Math.PI;
-  const vt = (T.vProf ? T.vProf[(c.ti + 2) % T.N] : 60) * Math.sqrt(g * gripMul(c)) * (c.laneT > 0 ? 0.97 : 1);
+  if (c.profFor !== T) { c.prof = cpuProfile(c.skill * (c.gripK || 1), c.brakeK || 0.85, c.gripK || 1); c.profFor = T; }
+  const vt = c.prof[(c.ti + 2) % T.N] * Math.sqrt(g / c.skill * gripMul(c)) * (c.laneT > 0 ? 0.97 : 1);
   return { throttle: c.vf < vt - 0.5 ? 1 : 0, brake: c.vf > vt + 1.5 ? 1 : 0, steer: clamp(ang * 4, -1, 1), boost: cpuItem(c), analog: true };
 }
 function standings() {                       // finished cars by place, then everyone else by progress
@@ -1188,7 +1220,7 @@ function startRace(rematch) {
   const solo = cfg.players === 1;
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
   const nCpu = solo && cfg.mode === 'hot' ? 0 : clamp(cfg.cpu | 0, 0, 5);
-  const names = CPU_NAMES.slice().sort(() => Math.random() - 0.5), cpus = [];
+  const names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5), cpus = [];
   for (let k = 0; k < nCpu; k++) cpus.push(makeCpu(hs.length + k, k, names));
   cars = hs.concat(cpus);
   if (solo && cfg.mode === 'hot') placeHot(cars[0]);
@@ -1218,9 +1250,53 @@ function startRace(rematch) {
     state = 'countdown'; paused = false;
   }
   GFX.reset(cars);
+  if (cup) humans().forEach(h => say(h, `CUP RACE ${cup.race + 1}/${CUP_TRACKS.length} · ${TRACK.title}`, '#ffd23f', 4.5));
   show('menu', false); show('pause', false); show('results', false);
 }
+// ---------------------------------------------------------------- cup
+// Race all five tracks in a row (Race or Chaos rules) for points; the same CPU drivers all cup long.
+const CUP_TRACKS = TRACK_ORDER, CUP_PTS = [10, 8, 6, 5, 4, 3, 2];
+let cup = null;          // { race, names, table: [{ id, name, col, cpu, pts, last, places }], done }
+const cupOn = () => cfg.cup && !(cfg.players === 1 && cfg.mode === 'hot');
+function startFromMenu() {
+  if (!cupOn()) { cup = null; startRace(false); return; }
+  if (!namesReady()) return;
+  newCup();
+}
+function newCup() {
+  cup = { race: 0, names: CPU_NAMES.slice().sort(() => Math.random() - 0.5), table: null, done: false };
+  goCupRace();
+}
+function goCupRace() {
+  const id = CUP_TRACKS[cup.race];
+  if (TRACK.id === id) { startRace(false); return; }
+  for (const b of ['startBtn', 'rematchBtn']) document.getElementById(b).textContent = 'Building track…';
+  setTimeout(() => { loadTrackData(id); if (GFX) GFX.buildScene(); startRace(false); }, 30);
+}
+function resultsNext() {
+  if (!cup) startRace(true);
+  else if (cup.done) newCup();
+  else goCupRace();
+}
+// tie-break: most wins, then most 2nd places, …, then the better result in the last race
+function cupStandings() {
+  const n = k => e => e.places.filter(p => p === k).length;
+  return [...cup.table].sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    for (let k = 1; k <= 7; k++) { const d = n(k)(b) - n(k)(a); if (d) return d; }
+    return a.places[a.places.length - 1] - b.places[b.places.length - 1];
+  });
+}
+function cupScore(order) {
+  if (!cup.table) cup.table = cars.map(c => ({ id: c.id, name: c.name, col: c.col, cpu: !!c.cpu, pts: 0, last: 0, places: [] }));
+  order.forEach((c, i) => {
+    const e = cup.table.find(t => t.id === c.id); if (!e) return;
+    e.last = CUP_PTS[i] || 0; e.pts += e.last; e.places.push(i + 1);
+  });
+  cup.race++; cup.done = cup.race >= CUP_TRACKS.length;
+}
 function toMenu() {
+  cup = null;
   fetchOnline();
   state = 'menu'; paused = false; AU.pause(false);
   show('pause', false); show('results', false); show('menu', true);
@@ -1242,11 +1318,11 @@ function onKeyPress(code) {
   if (state === 'menu') {
     if (document.getElementById('recordsOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('recordsOv', false); return; }
     if (document.getElementById('helpOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('helpOv', false); return; }
-    if (code === 'Enter' || code === 'NumpadEnter') startRace(false);
+    if (code === 'Enter' || code === 'NumpadEnter') startFromMenu();
     return;
   }
   if (state === 'results') {
-    if (code === 'Enter' || code === 'NumpadEnter') startRace(true);
+    if (code === 'Enter' || code === 'NumpadEnter') resultsNext();
     else if (code === 'Escape') toMenu();
     return;
   }
@@ -1284,7 +1360,7 @@ function physics(c, inp, dt, locked) {
   let vf = c.vx * ch + c.vy * sh;
   const av = Math.abs(vf);
   const H = hd();
-  const gm = gripMul(c);
+  const wet = gripMul(c), gk = c.gripK || 1, gm = wet * gk;   // gk: hidden grip bonus of the faster CPU levels
   // Chaos drift: throttle + brake together while steering → the brake is ignored, the car turns in
   // harder and slides; how long you hold it decides the drift boost (see chaosCar)
   const drift = !locked && isChaos() && !c.air && inp.throttle > 0.5 && inp.brake > 0.5 && Math.abs(c.steer) > 0.25 && vf > 12 && c.spinT <= 0;
@@ -1318,7 +1394,7 @@ function physics(c, inp, dt, locked) {
   }
   if (brk > 0) {
     if (vf > 0.5) {
-      ax -= brk * G * (H.brkA + H.brkB * vf * vf) * surf.brake * (0.5 + 0.5 * gm);
+      ax -= brk * G * (H.brkA + H.brkB * vf * vf) * surf.brake * (0.5 + 0.5 * wet) * gk;
       c.ers = Math.min(1, c.ers + ERS_REGEN * brk * dt * Math.min(1, vf / 30));
     } else if (thr < 0.1 && vf > -10) ax -= brk * 6;
   }
@@ -2628,9 +2704,37 @@ function showResults() {
       `<td class="num">${t}</td><td class="num ${fl ? 'purple' : ''}">${fmt(c.best)}${fl ? ' ⏱' : ''}</td></tr>`;
   });
   document.getElementById('resTable').innerHTML = html;
-  document.getElementById('resSub').textContent = `${isChaos() ? 'Chaos · ' : ''}${cfg.laps} lap${cfg.laps > 1 ? 's' : ''} · ${TRACK.full} · ${order.length > 1 ? win.name + ' wins!' : 'race complete'}`;
+  const raceNo = cup ? cup.race + 1 : 0;
+  document.getElementById('resSub').textContent = `${cup ? `Cup race ${raceNo}/${CUP_TRACKS.length} · ` : ''}${isChaos() ? 'Chaos · ' : ''}${cfg.laps} lap${cfg.laps > 1 ? 's' : ''} · ${TRACK.full} · ${order.length > 1 ? win.name + ' wins!' : 'race complete'}`;
   const rec = cars.find(c => c.newRecord);
   document.getElementById('resBanner').textContent = rec ? `New track record by ${rec.name}: ${fmt(record.t)}` : `Fastest lap: ${cars[session.bestBy] ? cars[session.bestBy].name : '-'} · ${fmt(session.bestLap)}`;
+  const grid = document.getElementById('resGrid'), box = document.getElementById('cupBox'), pod = document.getElementById('podium');
+  grid.classList.toggle('cup', !!cup);
+  document.getElementById('raceHead').style.display = cup ? '' : 'none';
+  document.querySelector('#results .panel').style.width = cup ? 'min(1060px,100%)' : 'min(640px,100%)';
+  box.innerHTML = ''; pod.innerHTML = '';
+  document.getElementById('resTitle').innerHTML = 'RACE <span>RESULT</span>';
+  let next = 'Rematch (Enter)';
+  if (cup) {
+    cupScore(order);
+    const st = cupStandings();
+    let t = '<tr><th>Pos</th><th>Driver</th><th>Race</th><th>Pts</th></tr>';
+    st.forEach((e, i) => {
+      t += `<tr><td class="pos">${i + 1}</td><td><span class="chip" style="background:${e.col.c}"></span>${esc(e.name)}${e.cpu ? ' <small style="color:var(--dim)">CPU</small>' : ''}</td>` +
+        `<td class="gain">${e.last ? '+' + e.last : ''}</td><td class="pts">${e.pts}</td></tr>`;
+    });
+    box.innerHTML = `<div class="cuphead">${cup.done ? 'Final cup standings' : `Cup standings after ${cup.race}/${CUP_TRACKS.length}`}</div><table>${t}</table>`;
+    if (cup.done) {
+      document.getElementById('resTitle').innerHTML = 'CUP <span>RESULT</span>';
+      document.getElementById('resSub').textContent = `${st[0].name} wins the ${isChaos() ? 'Chaos ' : ''}cup with ${st[0].pts} points!`;
+      const step = (e, h, medal) => e ? `<div style="height:${h}px;background:linear-gradient(180deg, ${e.col.c}, ${e.col.d})">${medal} ${esc(e.name)}<small>${e.pts} pts</small></div>` : '';
+      pod.innerHTML = `<div class="podium">${step(st[1], 78, '🥈')}${step(st[0], 104, '🥇')}${step(st[2], 60, '🥉')}</div>`;
+      next = 'New cup (Enter)';
+      AU.beep(880, 0.4, 0.12);
+    } else next = `Next: ${TRACK_SHORT[CUP_TRACKS[cup.race]]} (Enter)`;
+  }
+  document.getElementById('rematchBtn').textContent = next;
+  document.getElementById('menuBtn').textContent = cup && !cup.done ? 'Quit cup (Esc)' : 'Menu (Esc)';
   show('results', true);
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
@@ -2806,18 +2910,23 @@ function refreshMenu() {
       b.onclick = () => { set(v); refreshMenu(); }; el.appendChild(b);
     });
   };
-  seg('trackSeg', TRACK_ORDER.map(id => [id, TRACK_SHORT[id]]), TRACK.id, v => {
-    if (v === TRACK.id) return;
+  const hotMenu = cfg.players === 1 && cfg.mode === 'hot';
+  seg('trackSeg', TRACK_ORDER.map(id => [id, TRACK_SHORT[id]]).concat(hotMenu ? [] : [['cup', '🏆 Cup']]), cupOn() ? 'cup' : TRACK.id, v => {
+    cfg.cup = v === 'cup'; store.set('cup', cfg.cup);
+    if (v === 'cup' || v === TRACK.id) return;
     store.set('track', v);
     document.getElementById('startBtn').textContent = 'Building track…';
     setTimeout(() => {
       loadTrackData(v);
       if (GFX) GFX.buildScene();
       cars = [];
-      document.getElementById('startBtn').textContent = 'Start race';
       refreshMenu();
     }, 30);
   });
+  if (cupOn()) {
+    document.getElementById('trackTitle').textContent = '5-RACE CUP';
+    document.getElementById('trackSub').textContent = CUP_TRACKS.map(id => TRACK_SHORT[id]).join(' → ') + ' · points ' + CUP_PTS.join('-');
+  }
   seg('playersSeg', [[1, '1'], [2, '2']], cfg.players, v => { cfg.players = v; store.set('players', v); });
   const soloMenu = cfg.players === 1;
   seg('modeSeg', soloMenu ? [['race', 'Race'], ['hot', 'Hot lap'], ['chaos', 'Chaos']] : [['race', 'Race'], ['chaos', 'Chaos']],
@@ -2834,7 +2943,7 @@ function refreshMenu() {
   seg('ghostSeg', [['record', 'Record'], ['mine', 'My best'], ['off', 'Off']], cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
   document.getElementById('pc1').classList.toggle('off', solo);
   document.getElementById('soloNote').style.display = solo ? '' : 'none';
-  document.getElementById('startBtn').textContent = hot ? 'Start hot lap' : chaos ? 'Start chaos race' : 'Start race';
+  document.getElementById('startBtn').textContent = hot ? 'Start hot lap' : (chaos ? 'Start chaos ' : 'Start ') + (cupOn() ? 'cup' : 'race');
   seg('lapsSeg', [[1, '1'], [3, '3'], [5, '5'], [10, '10']], cfg.laps, v => { cfg.laps = v; store.set('laps', v); });
   seg('camSeg', [['onboard', 'Onboard'], ['rear', 'Rear cam'], ['tv', 'TV']], cfg.cam, v => { cfg.cam = v; store.set('cam3d', v); });
   seg('cpuSeg', [[0, '0'], [1, '1'], [3, '3'], [5, '5']], cfg.cpu, v => { cfg.cpu = v; store.set('cpu', v); });
@@ -2867,11 +2976,11 @@ function drawMenuMap() {
   const p = sToPoint(0, 0);
   g.fillStyle = '#fff'; g.save(); g.translate(ox + p.x * s, oy + p.y * s); g.rotate(p.h); g.fillRect(-1.5, -8, 3, 16); g.restore();
 }
-document.getElementById('startBtn').onclick = () => startRace(false);
+document.getElementById('startBtn').onclick = () => startFromMenu();
 document.getElementById('resumeBtn').onclick = () => setPause(false);
 document.getElementById('restartBtn').onclick = () => startRace(false);
 document.getElementById('quitBtn').onclick = () => toMenu();
-document.getElementById('rematchBtn').onclick = () => startRace(true);
+document.getElementById('rematchBtn').onclick = () => resultsNext();
 document.getElementById('menuBtn').onclick = () => toMenu();
 document.getElementById('recordsBtn').onclick = () => { showRecords(); fetchOnline(); };
 document.getElementById('recCloseBtn').onclick = () => show('recordsOv', false);
