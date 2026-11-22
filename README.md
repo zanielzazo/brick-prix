@@ -6,16 +6,16 @@ A browser racing game in the style of Formula 1 for one or two players on one ke
 
 ## Tracks
 
-Algarve (Portimão) · Spa-Francorchamps · Monza · Red Bull Ring · Silverstone
+Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão)
 
 The layouts are the real circuits, taken from OpenStreetMap. Elevation and scenery are approximate.
 
 ## Modes
 
 - **2 players**: split screen, standing start, 1–10 laps
-- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta to your best)
-- **Handling**: *Arcade* (forgiving) or *F1* (more grip and braking in slow corners, and you can over-rotate the car)
-- **Cameras**: TV broadcast cameras, chase or onboard, switchable during the race
+- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car** of your best lap that you can switch on or off)
+- **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
+- **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
 
 ## Controls
 
@@ -26,7 +26,7 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 | ERS boost | Space | Enter or Right Ctrl |
 | Change camera | C | Delete or . |
 
-You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run.
+You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run and G shows/hides the ghost.
 
 ## Race rules
 
@@ -38,7 +38,7 @@ You can also use gamepads (right trigger to accelerate, left trigger to brake, s
 
 ## Track records
 
-The **🏆 Records** table on the menu shows the best valid lap for every circuit, with separate columns for Arcade and F1 handling. It starts with Claude's hot laps as the times to beat:
+The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the F1 and Arcade leaderboards (each driver's best valid lap, with the gap to the leader). They start with Claude's hot laps as the times to beat:
 
 | Circuit | Arcade | F1 |
 |---|---|---|
@@ -48,7 +48,7 @@ The **🏆 Records** table on the menu shows the best valid lap for every circui
 | Red Bull Ring | 1:11.033 | 1:05.583 |
 | Silverstone | 1:41.775 | 1:33.775 |
 
-**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Click any time in the Records table to see that track's top 10. Laps under the default names "Player 1" and "Player 2" aren't uploaded.
+**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded.
 
 The online records use a free [Supabase](https://supabase.com) table (see [`supabase.sql`](supabase.sql)). The public key in the game can only read laps and add new ones; nobody can edit or delete laps, and impossible lap times are rejected. If the database can't be reached, the game falls back to the records in your own browser.
 
