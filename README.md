@@ -14,7 +14,7 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 
 Chaves is a real-size kart track (0.59 km, 12 turns, flat), raced in karts instead of F1 cars: about 90 km/h flat out, no downforce, rear brakes only, and a lap of roughly 30–35 s. Its sections run close side by side, so tyre walls sit between them. It isn't part of the Cup.
 
-Graz is the "Spielberg" circuit at Styria Karting Premstätten (0.36 km, 12 turns), traced from aerial imagery and raced right to left on the main straight. Graz Airport is next door, so the sky is busy: A380s, 777s, A320s, An-124s, An-225s, ATRs, Dash 8s and Cessnas land, take off and cross overhead, some in Aeroficial colours and some in yellow holiday-jet pinstripes. A (fake) Schlossberg with the Uhrturm watches from the hill. The track is dressed in Aeroficial Intelligence colours, with their ads on the billboards, the gantry and the tyre walls.
+Graz is the "Spielberg" circuit at Styria Karting Premstätten (0.36 km, 11 turns), straight from OpenStreetMap like Chaves, raced right to left on the main straight. Graz Airport is next door, so the sky is busy: A380s, 777s, A320s, An-124s, An-225s, ATRs, Dash 8s and Cessnas land, take off and cross overhead, flying in every direction: some in Aeroficial colours, some in Condor-style stripes (sunshine yellow, red, blue, green, sand). A (fake) Schlossberg with the Uhrturm stands straight ahead of the grid. The track is dressed in Aeroficial Intelligence colours, with their ads on the billboards, the gantry and the tyre walls.
 
 Karts have no ERS or DRS.
 
