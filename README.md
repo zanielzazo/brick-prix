@@ -6,11 +6,15 @@ A browser racing game in the style of Formula 1 for one or two players on one ke
 
 ## Tracks
 
-Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão) · **Kartódromo de Chaves** (karts)
+Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão)
+
+**Kart tracks** (their own row on the menu): Kartódromo de Chaves · Graz (Styria Karting Premstätten)
 
 The layouts are the real circuits, taken from OpenStreetMap. Elevation and scenery are approximate.
 
 Chaves is a real-size kart track (0.59 km, 12 turns, flat), raced in karts instead of F1 cars: about 90 km/h flat out, no downforce, rear brakes only, and a lap of roughly 30–35 s. Its sections run close side by side, so tyre walls sit between them. It isn't part of the Cup.
+
+Graz is the "Spielberg" circuit at Styria Karting Premstätten (0.36 km, 11 turns), right next to Graz Airport: airliners, Antonovs and small planes fly over while you race. It's dressed in Aeroficial Intelligence colours, with their ads on the billboards, the gantry and the tyre walls.
 
 ## Modes
 
