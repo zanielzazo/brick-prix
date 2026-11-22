@@ -48,7 +48,9 @@ The **🏆 Records** table on the menu shows the best valid lap for every circui
 | Red Bull Ring | 1:11.033 | 1:05.583 |
 | Silverstone | 1:41.775 | 1:33.775 |
 
-Beat one of these and your name replaces Claude's. Your records are saved in your own browser.
+**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Click any time in the Records table to see that track's top 10. Laps under the default names "Player 1" and "Player 2" aren't uploaded.
+
+The online records use a free [Supabase](https://supabase.com) table (see [`supabase.sql`](supabase.sql)). The public key in the game can only read laps and add new ones; nobody can edit or delete laps, and impossible lap times are rejected. If the database can't be reached, the game falls back to the records in your own browser.
 
 ## Files
 

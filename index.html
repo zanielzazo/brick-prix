@@ -129,8 +129,10 @@
     <div class="checker"></div>
     <div class="inner">
       <h1 style="font-size:36px">TRACK <span>RECORDS</span></h1>
-      <div class="sub">Best valid lap on each circuit, from any mode (race or hot lap). Beat Claude's times – your records are saved in this browser.</div>
+      <div class="sub">Best valid lap on each circuit, from any mode (race or hot lap). Click a time to see the top 10.</div>
+      <div class="sub" id="onlineStatus" style="margin-top:10px"></div>
       <table id="recTable"></table>
+      <div id="boardBox"></div>
       <div class="go"><button class="btn" id="recCloseBtn">Close (Esc)</button></div>
     </div>
   </div>
@@ -794,6 +796,7 @@ function startRace(rematch) {
   show('menu', false); show('pause', false); show('results', false);
 }
 function toMenu() {
+  fetchOnline();
   state = 'menu'; paused = false; AU.pause(false);
   show('pause', false); show('results', false); show('menu', true);
   refreshMenu();
@@ -1115,6 +1118,7 @@ function lapDone(c) {
     record = { t: lt, name: c.name, d: new Date().toISOString().slice(0, 10) }; store.set(recordKey(), record);
     c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3);
   }
+  if (!invalid) uploadLap(c, lt);
   if (isHot()) return;
   if (c.lapsDone >= cfg.laps || finishOrder.length) {
     c.finished = true; c.finishedAt = simTime; c.finishTime = simTime - raceStart;
@@ -1847,13 +1851,64 @@ const SEED_RECORDS = {
   algarve: { arcade: 91.2583, f1: 82.8333 }, spa: { arcade: 118.5, f1: 107.9583 }, monza: { arcade: 86.975, f1: 82.2583 },
   rbr: { arcade: 71.0333, f1: 65.5833 }, silverstone: { arcade: 101.775, f1: 93.775 },
 };
-function getRecord(id, handling) {
-  const mine = store.get(TRACKS[id].recordKey + (handling === 'f1' ? '.f1' : ''), null);
-  const t = SEED_RECORDS[id] && SEED_RECORDS[id][handling], seed = t ? { t, name: 'Claude', d: '2026-11-22' } : null;
-  if (!mine) return seed;
-  if (!seed) return mine;
-  return mine.t <= seed.t ? mine : seed;
+// ---------------------------------------------------------------- online records (Supabase)
+// The anon key is a public key by design: the database only allows reading laps and adding new
+// ones (no edits/deletes), and rejects impossible lap times. See supabase.sql.
+const ONLINE = { url: 'https://znehfqxorrkunvyimvad.supabase.co', key: 'sb_publishable_-7OpDVauEUp38v7TVRC8eQ_g8xNwf_F' };
+const online = { ok: false, rows: [], tried: false, err: '' };
+const onlineOn = () => !!(ONLINE.url && ONLINE.key);
+// legacy anon keys are JWTs (eyJ…) and go in Authorization too; new sb_publishable_ keys only in apikey
+const apiHeaders = () => ONLINE.key.startsWith('eyJ') ? { apikey: ONLINE.key, Authorization: 'Bearer ' + ONLINE.key } : { apikey: ONLINE.key };
+async function fetchOnline() {
+  if (!onlineOn()) return;
+  try {
+    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=track,handling,name,lap_ms,created_at&order=lap_ms.asc&limit=5000`, { headers: apiHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    online.rows = await r.json(); online.ok = true; online.err = '';
+  } catch (e) { online.ok = false; online.err = String(e.message || e); }
+  online.tried = true;
+  if (state === 'menu') refreshMenu();
+  if (document.getElementById('recordsOv').classList.contains('show')) showRecords();
 }
+const isDefaultName = n => /^player [12]$/i.test(n.trim());
+async function uploadLap(c, lt) {
+  if (!onlineOn() || isDefaultName(c.name)) return;
+  const name = c.name.trim().slice(0, 14), pbKey = `pb.${TRACK.id}.${cfg.handling}.${name.toLowerCase()}`;
+  const pb = store.get(pbKey, 0);
+  if (pb && lt >= pb) return;                     // only send personal bests
+  const track = TRACK.id, handling = cfg.handling;
+  try {
+    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records`, {
+      method: 'POST', headers: { ...apiHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ track, handling, name, lap_ms: Math.round(lt * 1000) }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    store.set(pbKey, lt);
+    if (c.msgT < 1) say(c, 'LAP UPLOADED  ' + fmt(lt), '#5cd0ff', 1.8);
+    fetchOnline();
+  } catch (e) { /* offline – the lap still counts locally */ }
+}
+function onlineBoard(id, handling) {             // best lap per player, fastest first
+  const seen = new Set(), out = [];
+  for (const r of online.rows) {
+    if (r.track !== id || r.handling !== handling) continue;
+    const k = r.name.trim().toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k); out.push({ t: r.lap_ms / 1000, name: r.name, d: String(r.created_at).slice(0, 10), online: true });
+  }
+  return out;
+}
+function boardFor(id, handling) {                // online + Claude's standing lap + this browser, one entry per name
+  const t = SEED_RECORDS[id] && SEED_RECORDS[id][handling];
+  const all = onlineBoard(id, handling);
+  if (t) all.push({ t, name: 'Claude', d: '2026-11-22' });
+  const mine = store.get(TRACKS[id].recordKey + (handling === 'f1' ? '.f1' : ''), null);
+  if (mine) all.push(mine);
+  all.sort((a, b) => a.t - b.t);
+  const seen = new Set();
+  return all.filter(r => { const k = r.name.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+function getRecord(id, handling) { return boardFor(id, handling)[0] || null; }
 function refreshMenu() {
   record = getRecord(TRACK.id, cfg.handling);
   document.getElementById('trackTitle').textContent = TRACK.title;
@@ -1941,17 +1996,31 @@ document.getElementById('restartBtn').onclick = () => startRace(false);
 document.getElementById('quitBtn').onclick = () => toMenu();
 document.getElementById('rematchBtn').onclick = () => startRace(true);
 document.getElementById('menuBtn').onclick = () => toMenu();
-document.getElementById('recordsBtn').onclick = showRecords;
+document.getElementById('recordsBtn').onclick = () => { showRecords(); fetchOnline(); };
 document.getElementById('recCloseBtn').onclick = () => show('recordsOv', false);
+let boardSel = null;
 function showRecords() {
-  const cell = r => r ? `<b class="num">${fmt(r.t)}</b><br><span style="font-size:12px;color:var(--dim)">${esc(r.name)} · ${r.d}</span>` : '<span style="color:var(--dim)">–</span>';
+  const st = document.getElementById('onlineStatus');
+  st.innerHTML = !onlineOn() ? 'Online records are not set up – showing Claude\'s times and laps from this browser.'
+    : online.ok ? '🌐 <b style="color:#2bd96b">Online</b> – laps from everyone who plays. Set your name on the menu to upload yours (“Player 1/2” is not uploaded).'
+    : online.tried ? `⚠ Online records unavailable (${esc(online.err)}) – showing this browser.` : 'Connecting to online records…';
+  const cell = (id, h) => { const r = getRecord(id, h);
+    return `<td data-t="${id}" data-h="${h}" style="cursor:pointer">${r ? `<b class="num">${fmt(r.t)}</b><br><span style="font-size:12px;color:var(--dim)">${esc(r.name)} · ${r.d}</span>` : '<span style="color:var(--dim)">–</span>'}</td>`; };
   let html = '<tr><th>Circuit</th><th>Arcade</th><th style="color:#c77dff">F1</th></tr>';
   for (const t of Object.values(TRACKS)) {
     const here = t.id === TRACK.id;
-    html += `<tr style="${here ? 'background:rgba(225,6,0,.08)' : ''}"><td><b>${t.title}</b><br><span style="font-size:12px;color:var(--dim)">${t.km}</span></td>` +
-      `<td>${cell(getRecord(t.id, 'arcade'))}</td><td>${cell(getRecord(t.id, 'f1'))}</td></tr>`;
+    html += `<tr style="${here ? 'background:rgba(225,6,0,.08)' : ''}"><td><b>${t.title}</b><br><span style="font-size:12px;color:var(--dim)">${t.km}</span></td>` + cell(t.id, 'arcade') + cell(t.id, 'f1') + '</tr>';
   }
-  document.getElementById('recTable').innerHTML = html;
+  const tbl = document.getElementById('recTable');
+  tbl.innerHTML = html;
+  tbl.querySelectorAll('td[data-t]').forEach(td => td.onclick = () => { boardSel = [td.dataset.t, td.dataset.h]; showRecords(); });
+  const box = document.getElementById('boardBox');
+  if (boardSel) {
+    const [id, h] = boardSel, rows = boardFor(id, h).slice(0, 10);
+    box.innerHTML = `<div class="sub" style="margin-top:16px;color:var(--txt)"><b>${TRACKS[id].title}</b> · ${h === 'f1' ? 'F1' : 'Arcade'} handling · top 10</div>` +
+      '<table><tr><th>#</th><th>Driver</th><th>Lap</th><th>Date</th></tr>' +
+      rows.map((r, i) => `<tr><td class="pos" style="font-size:16px">${i + 1}</td><td>${esc(r.name)}</td><td class="num"><b>${fmt(r.t)}</b></td><td style="color:var(--dim)">${r.d}</td></tr>`).join('') + '</table>';
+  } else box.innerHTML = '';
   show('recordsOv', true);
 }
 
@@ -1972,6 +2041,7 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 refreshMenu();
+fetchOnline();
 window.GP = { get state() { return state; }, get cars() { return cars; }, get T() { return T; }, get STATIONS() { return STATIONS; }, keys, step, cfg, startRace, loadTrackData, get GFX() { return GFX; } };
 requestAnimationFrame(frame);
 </script>
