@@ -13,7 +13,7 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 ## Modes
 
 - **2 players**: split screen, standing start, 1–10 laps
-- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car** of your best lap that you can switch on or off)
+- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
 - **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
 
@@ -26,7 +26,7 @@ The layouts are the real circuits, taken from OpenStreetMap. Elevation and scene
 | ERS boost | Space | Enter or Right Ctrl |
 | Change camera | C | Delete or . |
 
-You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run and G shows/hides the ghost.
+You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run and G switches the ghost (record / my best / off).
 
 ## Race rules
 

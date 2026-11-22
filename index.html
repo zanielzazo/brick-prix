@@ -92,7 +92,7 @@
           <input id="name0" maxlength="14" value="Player 1">
           <div class="swatches" id="sw0"></div>
           <div class="keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake / reverse · <kbd>A</kbd><kbd>D</kbd> steer<br><kbd>Space</kbd> ERS boost · <kbd>C</kbd> change camera · or gamepad 1</div>
-          <div class="solo-note" id="soloNote">Single player: the arrow keys work too. In Hot lap press <kbd>R</kbd> to restart the run, <kbd>G</kbd> to show/hide the ghost.</div>
+          <div class="solo-note" id="soloNote">Single player: the arrow keys work too. In Hot lap press <kbd>R</kbd> to restart the run, <kbd>G</kbd> to switch ghost (record / my best / off).</div>
         </div>
         <div class="pcard" id="pc1">
           <label>Player 2</label>
@@ -732,8 +732,9 @@ let cars = [], parts = [], finishOrder = [], resultsAt = 0;
 let session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
 let gridFlip = Math.random() < 0.5;
 const cfg = {
-  laps: store.get('laps', 3), cam: (v => v === 'chase' ? 'rear' : v)(store.get('cam3d', 'tv')),   // old 'chase' setting → rear cam
-  players: store.get('players', 2), mode: store.get('mode', 'race'), handling: store.get('handling', 'arcade'), ghost: store.get('ghost', true),
+  laps: store.get('laps', 3), cam: (v => v === 'chase' ? 'rear' : v)(store.get('cam3d', 'onboard')),   // old 'chase' setting → rear cam
+  players: store.get('players', 2), mode: store.get('mode', 'race'), handling: store.get('handling', 'f1'),
+  ghost: (v => v === true ? 'mine' : v === false ? 'off' : v)(store.get('ghost', 'record')),   // old on/off setting → mine/off
   names: store.get('names', ['Player 1', 'Player 2']), colors: store.get('colors', [0, 3]),
 };
 let record = null;
@@ -763,7 +764,17 @@ function placeCar(c, slot) {
 const isSolo = () => cars.length === 1;
 const isHot = () => cars.length === 1 && cfg.mode === 'hot';
 // Ghost: your best valid hot lap on this track + handling, sampled every 0.05 s and kept in this browser.
-let ghost = null;
+let ghost = null, recGhost = null, ghostShow = null, ghostReq = 0;
+const GHOST_MODES = ['record', 'mine', 'off'], GHOST_NAMES = { record: 'RECORD GHOST', mine: 'MY BEST GHOST', off: 'GHOST OFF' };
+function pickGhost() {
+  if (cfg.ghost === 'off') ghostShow = null;
+  else if (cfg.ghost === 'mine') ghostShow = ghost;
+  else ghostShow = recGhost && ghost ? (ghost.t < recGhost.t ? ghost : recGhost) : (recGhost || ghost);
+}
+function loadRecordGhost() {
+  const req = ++ghostReq, track = TRACK.id, handling = cfg.handling;
+  fetchRecordGhost(track, handling).then(g => { if (req !== ghostReq) return; recGhost = g; pickGhost(); });
+}
 const ghostKey = () => `ghost.${TRACK.id}.${cfg.handling}`;
 
 // Hot lap: start on the straight before the last braking zone, already at speed, so you take
@@ -799,7 +810,10 @@ function startRace(rematch) {
     state = 'race'; paused = false;
     say(cars[0], 'OUT LAP – PUSH!', GREEN, 2.2);
     ghost = store.get(ghostKey(), null);
+    if (ghost) ghost.name = 'Your best';
     if (ghost && ghost.tr) cars[0].bestTrace = ghost.tr;    // live delta against your all-time best
+    recGhost = null; pickGhost();
+    if (cfg.ghost === 'record') loadRecordGhost();
   } else {
     cd = { t: 0, lights: 0, out: 5 + 0.4 + Math.random() * 1.6 };
     state = 'countdown'; paused = false;
@@ -844,7 +858,11 @@ function onKeyPress(code) {
   }
   if (code === 'Escape') setPause(true);
   if (code === 'KeyR' && isHot()) { startRace(false); return; }
-  if (code === 'KeyG' && isHot()) { cfg.ghost = !cfg.ghost; store.set('ghost', cfg.ghost); say(cars[0], cfg.ghost ? 'GHOST ON' : 'GHOST OFF', '#9fd8ff', 1.2); return; }
+  if (code === 'KeyG' && isHot()) {
+    cfg.ghost = GHOST_MODES[(GHOST_MODES.indexOf(cfg.ghost) + 1) % GHOST_MODES.length]; store.set('ghost', cfg.ghost);
+    if (cfg.ghost === 'record' && !recGhost) loadRecordGhost();
+    pickGhost(); say(cars[0], GHOST_NAMES[cfg.ghost], '#9fd8ff', 1.2); return;
+  }
   for (let p = 0; p < 2; p++) if (KEYMAP[p].cam.includes(code)) { const c = isSolo() ? cars[0] : cars[p]; if (c) cycleCam(c); }
 }
 
@@ -1118,12 +1136,14 @@ function lapDone(c) {
   const lt = simTime - c.lapStart;
   sectorDone(c, 2, simTime - c.sectorStart);
   const invalid = c.lapInvalid;
+  const lapRec = isHot() ? c.gRec : null;
   const refT = Math.min(c.best, isHot() && ghost ? ghost.t : Infinity);
   if (!invalid && lt < refT) {
     c.bestTrace = c.curTrace;
     if (isHot() && c.gRec && c.gRec.length > 10) {
       ghost = { t: lt, s: c.gRec, tr: c.curTrace };
       store.set(ghostKey(), ghost);
+      ghost.name = 'Your best'; pickGhost();
     }
   }
   c.curTrace = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
@@ -1142,7 +1162,7 @@ function lapDone(c) {
     record = { t: lt, name: c.name, d: new Date().toISOString().slice(0, 10) }; store.set(recordKey(), record);
     c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3);
   }
-  if (!invalid) uploadLap(c, lt);
+  if (!invalid) uploadLap(c, lt, lapRec);
   if (isHot()) return;
   if (c.lapsDone >= cfg.laps || finishOrder.length) {
     c.finished = true; c.finishedAt = simTime; c.finishTime = simTime - raceStart;
@@ -1194,7 +1214,7 @@ function updateParts(dt) {
 // ---------------------------------------------------------------- 3D graphics
 const hud = document.getElementById('hud'), ctx = hud.getContext('2d');
 let W = 0, H = 0, DPR = 1;
-loadTrackData(store.get('track', 'algarve'));
+loadTrackData(store.get('track', 'spa'));
 const GFX = window.THREE ? buildGfx() : null;
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
@@ -1588,12 +1608,13 @@ function buildGfx() {
       m.g.visible = !(c.ghost > 0 && Math.floor(simTime * 12) % 2);
     });
     if (ghostMesh) {
-      const c = cars[0], g = ghost;
+      const c = cars[0], g = ghostShow;
       let vis = false;
-      if (g && cfg.ghost && c && c.timing) {
+      if (g && c && c.timing) {
+        ghostMat.color.set(g === ghost ? '#4fc8ff' : '#ffc83d');
         const t = simTime - c.lapStart, smp = g.s;
         if (t <= g.t && smp.length > 1) {
-          let k = clamp(Math.floor(t / 0.05), 0, smp.length - 2);
+          let k = clamp(Math.floor(t / (g.dt || 0.05)), 0, smp.length - 2);
           while (k > 0 && smp[k][0] > t) k--;
           while (k < smp.length - 2 && smp[k + 1][0] <= t) k++;
           const a = smp[k], b = smp[k + 1], f = clamp((t - a[0]) / ((b[0] - a[0]) || 1), 0, 1);
@@ -1769,6 +1790,12 @@ function drawHud(vp, c) {
         txt((d >= 0 ? '+' : '−') + Math.abs(d).toFixed(2), x + 206, 159, F(800, 17), d >= 0 ? '#ff6b6b' : '#2bd96b', 'right');
       }
     }
+    if (isHot() && ghostShow) {
+      panel(x, 172, 220, 30, 6);
+      ctx.fillStyle = ghostShow === ghost ? '#4fc8ff' : '#ffc83d'; ctx.beginPath(); ctx.arc(x + 18, 187, 5, 0, 7); ctx.fill();
+      txt('GHOST', x + 30, 192, F(600, 12), '#9aa1ab');
+      txt(ghostShow.name + ' · ' + fmt(ghostShow.t), x + 206, 192, F(700, 13), '#fff', 'right');
+    }
   }
   if (c.camMode === 'tv' && c.cam && c.cam.station >= 0) {
     const st = STATIONS[c.cam.station];
@@ -1922,17 +1949,37 @@ async function fetchOnline() {
   if (document.getElementById('recordsOv').classList.contains('show')) showRecords();
 }
 const isDefaultName = n => /^player [12]$/i.test(n.trim());
-async function uploadLap(c, lt) {
+function packGhost(rec) {
+  if (!rec || rec.length < 20) return null;
+  const p = [];
+  for (let i = 0; i < rec.length; i += 2) p.push(Math.round(rec[i][1] * 10), Math.round(rec[i][2] * 10), Math.round(rec[i][3] * 1000));
+  return { v: 1, dt: 0.1, p };
+}
+async function fetchRecordGhost(track, handling) {   // fastest lap that has a ghost
+  if (!onlineOn()) return null;
+  try {
+    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=name,lap_ms,ghost&track=eq.${track}&handling=eq.${handling}&ghost=not.is.null&order=lap_ms.asc&limit=1`, { headers: apiHeaders() });
+    if (!r.ok) return null;
+    const row = (await r.json())[0];
+    if (!row || !row.ghost || !Array.isArray(row.ghost.p)) return null;
+    const dt = row.ghost.dt || 0.1, p = row.ghost.p, smp = [];
+    for (let i = 0; i + 2 < p.length; i += 3) smp.push([(i / 3) * dt, p[i] / 10, p[i + 1] / 10, p[i + 2] / 1000]);
+    return { t: row.lap_ms / 1000, s: smp, dt, name: row.name };
+  } catch (e) { return null; }
+}
+async function uploadLap(c, lt, rec) {
   if (!onlineOn() || isDefaultName(c.name)) return;
   const name = c.name.trim().slice(0, 14), pbKey = `pb.${TRACK.id}.${cfg.handling}.${name.toLowerCase()}`;
   const pb = store.get(pbKey, 0);
   if (pb && lt >= pb) return;                     // only send personal bests
-  const track = TRACK.id, handling = cfg.handling;
+  const track = TRACK.id, handling = cfg.handling, ghostData = packGhost(rec);
+  const post = body => fetch(`${ONLINE.url}/rest/v1/lap_records`, {
+    method: 'POST', headers: { ...apiHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(body),
+  });
   try {
-    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records`, {
-      method: 'POST', headers: { ...apiHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ track, handling, name, lap_ms: Math.round(lt * 1000) }),
-    });
+    const row = { track, handling, name, lap_ms: Math.round(lt * 1000) };
+    let r = await post(ghostData ? { ...row, ghost: ghostData } : row);
+    if (!r.ok && ghostData && r.status === 400) r = await post(row);   // database without the ghost column
     if (!r.ok) throw new Error('HTTP ' + r.status);
     store.set(pbKey, lt);
     if (c.msgT < 1) say(c, 'LAP UPLOADED  ' + fmt(lt), '#5cd0ff', 1.8);
@@ -2011,7 +2058,7 @@ function refreshMenu() {
   document.getElementById('modeOpt').style.display = solo ? '' : 'none';
   document.getElementById('lapsOpt').style.display = hot ? 'none' : '';
   document.getElementById('ghostOpt').style.display = hot ? '' : 'none';
-  seg('ghostSeg', [[true, 'On'], [false, 'Off']], cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
+  seg('ghostSeg', [['record', 'Record'], ['mine', 'My best'], ['off', 'Off']], cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
   document.getElementById('pc1').classList.toggle('off', solo);
   document.getElementById('soloNote').style.display = solo ? '' : 'none';
   document.getElementById('startBtn').textContent = hot ? 'Start hot lap' : 'Start race';

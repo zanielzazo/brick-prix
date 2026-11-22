@@ -21,6 +21,11 @@ create table if not exists public.lap_records (
 
 create index if not exists lap_records_board on public.lap_records (track, handling, lap_ms);
 
+-- Ghost car of the lap: { v, dt, p: [x_dm, y_dm, heading_mrad, ...] } sampled every 0.1 s (~20–30 KB).
+alter table public.lap_records add column if not exists ghost jsonb;
+alter table public.lap_records drop constraint if exists ghost_size;
+alter table public.lap_records add constraint ghost_size check (ghost is null or pg_column_size(ghost) < 150000);
+
 -- Newer Supabase projects don't grant table access to the public roles automatically.
 grant select, insert on public.lap_records to anon, authenticated;
 
