@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GP Duel</title>
+<title>Brick Prix</title>
 <style>
   :root { --bg:#0b0d10; --panel:rgba(14,16,21,.92); --line:rgba(255,255,255,.1); --txt:#f1f2f4; --dim:#9aa1ab; --red:#e10600; }
   * { box-sizing:border-box; }
@@ -18,12 +18,21 @@
     max-height:100%; overflow:auto; box-shadow:0 30px 80px rgba(0,0,0,.6); }
   .checker { height:10px; border-radius:14px 14px 0 0;
     background:repeating-conic-gradient(#fff 0 25%, #111 0 50%) 0 0/10px 10px; opacity:.9; }
-  .inner { padding:22px 28px 26px; }
+  .inner { padding:20px 28px 20px; }
+  #menu .panel { width:min(1060px,100%); }
+  .trackline { margin-top:8px; font-size:15px; color:var(--dim); }
+  .trackline b { color:var(--txt); font-weight:800; letter-spacing:.04em; margin-right:6px; }
+  .foot { margin-top:14px; padding-top:10px; border-top:1px solid var(--line); font-size:11px; color:var(--dim); display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; }
+  .foot a { color:inherit; }
+  .foot .made { color:var(--txt); opacity:.85; }
+  .help { display:grid; grid-template-columns:1fr 1fr; gap:10px 28px; margin-top:14px; font-size:14px; line-height:1.55; color:var(--dim); }
+  .help b { color:var(--txt); }
+  @media (max-width:760px) { .help { grid-template-columns:1fr; } }
   h1 { margin:0; font-size:44px; letter-spacing:.06em; font-weight:800; font-style:italic; line-height:1; }
   h1 span { color:var(--red); }
   .sub { color:var(--dim); margin-top:6px; font-size:14px; letter-spacing:.03em; }
   .top { display:flex; gap:24px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-  #menuMap { width:250px; height:190px; }
+  #menuMap { width:250px; height:160px; }
   .players { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
   .pcard { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:rgba(255,255,255,.03); border-top:4px solid var(--pc,#e10600); }
   .pcard.off { opacity:.35; pointer-events:none; }
@@ -79,9 +88,9 @@
     <div class="inner">
       <div class="top">
         <div>
-          <h1><b id="trackTitle" style="font-weight:800">ALGARVE</b> <span>GP</span></h1>
-          <div class="sub" id="trackSub"></div>
-          <div class="rec" id="recLine" style="margin-top:14px"></div>
+          <h1>BRICK <span>PRIX</span></h1>
+          <div class="trackline"><b id="trackTitle">SPA</b><span id="trackSub"></span></div>
+          <div class="rec" id="recLine" style="margin-top:8px"></div>
           <div class="warn" id="noThree">The 3D engine (three.js) could not load – connect to the internet once, or play the 2D version: index-2d.html</div>
         </div>
         <canvas id="menuMap"></canvas>
@@ -114,19 +123,35 @@
       <div class="go">
         <button class="btn" id="startBtn">Start race</button>
         <span class="rec">or press <kbd>Enter</kbd></span>
-        <button class="btn ghost" id="recordsBtn" style="margin-left:auto">🏆 Records</button>
+        <button class="btn ghost" id="helpBtn" style="margin-left:auto">❓ How to play</button>
+        <button class="btn ghost" id="recordsBtn">🏆 Records</button>
       </div>
-      <div class="tips">
-        <b>TV camera</b> – each player gets their own broadcast director: trackside cameras pan and zoom to follow your car and cut to the next camera as you go round. Controls are always relative to the car.
-        <b>ERS</b> – hold boost for extra power; recharges when you brake.
-        <b>DRS</b> – from lap 2, <span id="drsTip">cross the detection line</span> less than 1 s behind and the rear wing opens on the next straight.
-        <b>Slipstream</b> – sit right behind your rival for a tow.
-        <b>Ghost</b> – in 1-player Hot lap, chase a replay of the track record or your own best lap.
-        <b>Handling</b> – Arcade is forgiving; F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it). Records are kept separately.
-        <b>Track limits</b> – all four wheels past the kerb deletes that lap; after 3 warnings each one costs +5 s. Cut a corner or chicane and you must slow down to give the time back. Grass is slow; cut the infield and you're put back on track.
-        <br><kbd>Esc</kbd> pause · <kbd>M</kbd> mute
-        <div style="margin-top:10px;font-size:11px;opacity:.7">Track layouts © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="color:inherit">OpenStreetMap</a> contributors (ODbL) · 3D: <a href="https://threejs.org" target="_blank" rel="noopener" style="color:inherit">three.js</a> · elevation and scenery are approximate</div>
+      <div class="foot">
+        <span>Track layouts © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL) · 3D: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> · elevation and scenery are approximate</span>
+        <span class="made">Made by <b>Zaniel Zazo b2b Claudius Maximus</b></span>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="helpOv" class="overlay" style="z-index:6">
+  <div class="panel" style="width:min(900px,100%)">
+    <div class="checker"></div>
+    <div class="inner">
+      <h1 style="font-size:36px">HOW TO <span>PLAY</span></h1>
+      <div class="help">
+        <div><b>Cameras</b> – Onboard, Rear cam (locked behind the car) or TV: trackside cameras pan and zoom to follow you and cut to the next camera as you go round. Controls are always relative to the car.</div>
+        <div><b>ERS</b> – hold boost for extra power; it recharges when you brake.</div>
+        <div><b>DRS</b> – from lap 2, <span id="drsTip">cross the detection line</span> less than 1 s behind and the rear wing opens on the next straight. In single player it opens in every DRS zone.</div>
+        <div><b>Slipstream</b> – sit right behind your rival for a tow.</div>
+        <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta. <kbd>R</kbd> restarts the run.</div>
+        <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
+        <div><b>Handling</b> – F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it); Arcade is forgiving. Records are kept separately.</div>
+        <div><b>Track limits</b> – all four wheels past the kerb deletes that lap; after 3 warnings each one costs +5 s. Cut a corner or chicane and you must slow down to give the time back. Grass is slow; cut the infield and you're put back on track.</div>
+        <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
+        <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · gamepads work too (triggers, stick, <kbd>Y</kbd> camera).</div>
+      </div>
+      <div class="go"><button class="btn" id="helpCloseBtn">Close (Esc)</button></div>
     </div>
   </div>
 </div>
@@ -850,6 +875,7 @@ function onKeyPress(code) {
   if (code === 'KeyM') { AU.toggleMute(); return; }
   if (state === 'menu') {
     if (document.getElementById('recordsOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('recordsOv', false); return; }
+    if (document.getElementById('helpOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('helpOv', false); return; }
     if (code === 'Enter' || code === 'NumpadEnter') startRace(false);
     return;
   }
@@ -2050,7 +2076,7 @@ function getRecord(id, handling) { return boardFor(id, handling)[0] || null; }
 function refreshMenu() {
   record = getRecord(TRACK.id, cfg.handling);
   document.getElementById('trackTitle').textContent = TRACK.title;
-  document.getElementById('trackSub').innerHTML = `${TRACK.full} · ${TRACK.place}<br>${TRACK.km} · ${TRACK.turns} turns · clockwise`;
+  document.getElementById('trackSub').innerHTML = `${TRACK.full} · ${TRACK.place} · ${TRACK.km} · ${TRACK.turns} turns`;
   document.getElementById('drsTip').textContent = TRACK.drsText;
   const recTxt = (h, label) => {
     const r = getRecord(TRACK.id, h), on = cfg.handling === h;
@@ -2141,6 +2167,8 @@ document.getElementById('rematchBtn').onclick = () => startRace(true);
 document.getElementById('menuBtn').onclick = () => toMenu();
 document.getElementById('recordsBtn').onclick = () => { showRecords(); fetchOnline(); };
 document.getElementById('recCloseBtn').onclick = () => show('recordsOv', false);
+document.getElementById('helpBtn').onclick = () => show('helpOv', true);
+document.getElementById('helpCloseBtn').onclick = () => show('helpOv', false);
 let recTab = null;
 function showRecords() {
   if (!recTab || !TRACKS[recTab]) recTab = TRACK.id;

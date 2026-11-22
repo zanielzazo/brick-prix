@@ -1,8 +1,8 @@
-# F1 Arcade
+# Brick Prix
 
 A browser racing game in the style of Formula 1 for one or two players on one keyboard. It's 3D, with TV-broadcast cameras, and you play it straight in the browser with nothing to install.
 
-**▶ Play: https://zanielzazo.github.io/f1-arcade/**
+**▶ Play: https://zanielzazo.github.io/brick-prix/**
 
 ## Tracks
 
@@ -58,6 +58,8 @@ The online records use a free [Supabase](https://supabase.com) table (see [`supa
 - `index-2d.html`: the original top-down 2D version (Algarve only, works offline)
 
 ## Credits
+
+Made by **Zaniel Zazo b2b Claudius Maximus**.
 
 - Track layouts © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available under the Open Database License (ODbL)
 - 3D rendering: [three.js](https://threejs.org) (MIT), loaded from cdnjs
