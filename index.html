@@ -1164,7 +1164,7 @@ function physics(c, inp, dt, locked) {
   c.pitch = Math.atan(T.GR[c.ti] * along);
   if (!locked && (Math.abs(vf) > 0.3 || thr > 0 || brk === 0)) ax -= G * T.GR[c.ti] * along * (brk > 0 && Math.abs(vf) < 1 ? 0 : 1);
   const cdr = DRAG * (c.drs ? 0.8 : 1) * (1 - 0.32 * c.tow) * (c.turboT > 0 ? 0.72 : 1);
-  const resist = cdr * vf * vf + ROLL + surf.drag + surf.dragQ * vf * vf + (slowing && vf > c.slowV ? 5 : 0) + (scSlow ? 24 : 0);   // safety car: firm braking down to its speed
+  const resist = cdr * vf * vf + ROLL + surf.drag + surf.dragQ * vf * vf + (slowing && vf > c.slowV ? 20 : 0) + (scSlow ? 24 : 0);   // safety car: firm braking down to its speed
   const vf0 = vf;
   vf += ax * dt;
   if (brk > 0 && vf0 > 0 && vf < 0) vf = 0;
@@ -1288,7 +1288,7 @@ function step(dt) {
       c.off = null;
       if (!c.finished && !isChaos() && !c.cpu) { c.lapInvalid = true; strike(c, 'CUT – PUT BACK ON TRACK'); }
     }
-    if (!c.finished && !isChaos() && !c.cpu) trackLimits(c, ds, dt);
+    if (!c.finished && !c.cpu) trackLimits(c, ds, dt);
     const ti = c.ti, sp = Math.hypot(c.vx, c.vy);
     if (sp > 6 && (c.vx * T.TX[ti] + c.vy * T.TY[ti]) < -0.5 * sp) { c.wrongT += dt; if (c.wrongT > 1) say(c, 'WRONG WAY', '#ff5050', 0.3); }
     else c.wrongT = 0;
@@ -1373,7 +1373,7 @@ function wheelsOff(c) {
 function trackLimits(c, ds, dt) {
   const sp = Math.hypot(c.vx, c.vy), off = wheelsOff(c);
   if (!c.off) {
-    if (off && sp > 3) c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false };
+    if (off && sp > 3) c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false, i0: c.ti };
     return;
   }
   const o = c.off;
@@ -1384,12 +1384,23 @@ function trackLimits(c, ds, dt) {
   if (o.back < 0.8) return;      // so both apexes of a cut chicane count as one offence
   c.off = null;
   if (o.dist < 1) return;
-  c.lapInvalid = true;
   const gain = o.prog - o.dist;
+  // A cut must cost more than the corner: the car is braked hard to ~75% of the slowest corner speed
+  // in the section it skipped and held there for at least 2.5 s (longer the more ground it gained).
+  const slowDown = () => {
+    let vCorner = Infinity;
+    if (T.vProf) for (let k = 0, i = o.i0; k < 600 && i !== c.ti; k++, i = (i + 1) % T.N) vCorner = Math.min(vCorner, T.vProf[i]);
+    c.slowV = Math.max(10, Math.min(sp * 0.5, vCorner * 0.75));
+    c.slowT = clamp(4 * gain / Math.max(sp, 15) + 1.5, 2.5, 10);
+  };
+  if (isChaos()) {                                   // Chaos: no warnings or deleted laps, but cuts don't pay
+    if (gain > 3) { slowDown(); say(c, 'CORNER CUT – SLOW DOWN', YELLOW, 2.2); }
+    return;
+  }
+  c.lapInvalid = true;
   if (isHot()) { if (c.timing) say(c, (gain > 3 ? 'CORNER CUT' : 'TRACK LIMITS') + ' · LAP INVALID', '#ff6b6b', 2.4); return; }
   if (gain > 3) {
-    c.slowT = clamp(2.5 * gain / Math.max(sp, 15) + 0.5, 1.5, 8);
-    c.slowV = Math.max(12, sp * 0.6);
+    slowDown();
     strike(c, 'CORNER CUT');
   } else if (o.grass || 1 - o.vMin / Math.max(o.v0, 1) > 0.10) {
     say(c, 'TRACK LIMITS · LAP TIME DELETED', '#ff9b9b', 1.8);
