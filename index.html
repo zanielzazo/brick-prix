@@ -42,6 +42,8 @@
   @media (max-width:640px) { .recgrid { grid-template-columns:1fr; } }
   .solo-note { font-size:12px; color:var(--dim); margin-top:6px; }
   .pcard label { font-size:11px; color:var(--dim); letter-spacing:.12em; text-transform:uppercase; }
+  .pcard input.need { border-color:#ff5050; box-shadow:0 0 0 2px rgba(255,80,80,.35); }
+  .namewarn { color:#ff8080; font-weight:700; font-size:14px; }
   .pcard input { width:100%; margin:4px 0 10px; background:#0d0f13; border:1px solid var(--line); color:var(--txt);
     border-radius:6px; padding:7px 9px; font-size:15px; font-weight:600; }
   .swatches { display:flex; gap:7px; margin-bottom:10px; }
@@ -98,14 +100,14 @@
       <div class="players">
         <div class="pcard" id="pc0">
           <label>Player 1</label>
-          <input id="name0" maxlength="14" value="Player 1">
+          <input id="name0" maxlength="14" placeholder="Your name (required)" autocomplete="off">
           <div class="swatches" id="sw0"></div>
           <div class="keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake / reverse · <kbd>A</kbd><kbd>D</kbd> steer<br><kbd>Space</kbd> ERS boost · <kbd>C</kbd> change camera · or gamepad 1</div>
           <div class="solo-note" id="soloNote">Single player: the arrow keys work too. In Hot lap press <kbd>R</kbd> to restart the run, <kbd>G</kbd> to switch ghost (record / my best / off).</div>
         </div>
         <div class="pcard" id="pc1">
           <label>Player 2</label>
-          <input id="name1" maxlength="14" value="Player 2">
+          <input id="name1" maxlength="14" placeholder="Your name (required)" autocomplete="off">
           <div class="swatches" id="sw1"></div>
           <div class="keys"><kbd>↑</kbd> throttle · <kbd>↓</kbd> brake / reverse · <kbd>←</kbd><kbd>→</kbd> steer<br><kbd>Enter</kbd>/<kbd>Right Ctrl</kbd> ERS · <kbd>Delete</kbd> or <kbd>.</kbd> camera · or gamepad 2</div>
         </div>
@@ -122,7 +124,8 @@
       <div class="solo-note" id="ghostInfo" style="display:block;margin-top:10px"></div>
       <div class="go">
         <button class="btn" id="startBtn">Start race</button>
-        <span class="rec">or press <kbd>Enter</kbd></span>
+        <span class="rec" id="enterHint">or press <kbd>Enter</kbd></span>
+        <span class="namewarn" id="nameWarn"></span>
         <button class="btn ghost" id="helpBtn" style="margin-left:auto">❓ How to play</button>
         <button class="btn ghost" id="recordsBtn">🏆 Records</button>
       </div>
@@ -936,8 +939,25 @@ function placeHot(c) {
   while (c.gear < 8 && v > GEAR_V[c.gear - 1] * 0.97) c.gear++;
 }
 
+// Everyone racing needs a real name (not empty, not "Player 1/2", and different in 2-player mode),
+// so every lap can be saved to the online leaderboard under the right driver.
+function namesReady() {
+  const need = cfg.players === 1 ? [0] : [0, 1];
+  let msg = '', bad = -1;
+  for (const p of need) {
+    const n = (cfg.names[p] || '').trim();
+    if (!n || isDefaultName(n)) { msg = need.length > 1 ? `Enter a name for Player ${p + 1} to start` : 'Enter your name to start'; bad = p; break; }
+  }
+  if (!msg && need.length > 1 && cfg.names[0].trim().toLowerCase() === cfg.names[1].trim().toLowerCase()) { msg = 'Use two different names'; bad = 1; }
+  document.getElementById('nameWarn').textContent = msg;
+  document.getElementById('enterHint').style.display = msg ? 'none' : '';
+  for (const p of [0, 1]) document.getElementById('name' + p).classList.toggle('need', p === bad);
+  if (bad >= 0) document.getElementById('name' + bad).focus();
+  return !msg;
+}
 function startRace(rematch) {
   if (!window.THREE) return;
+  if (state === 'menu' && !namesReady()) return;
   AU.init();
   if (rematch) gridFlip = !gridFlip;
   const solo = cfg.players === 1;
@@ -2347,8 +2367,9 @@ function refreshMenu() {
     });
     document.getElementById('pc' + p).style.setProperty('--pc', COLORS[cfg.colors[p]].c);
     const inp = document.getElementById('name' + p);
-    inp.value = cfg.names[p];
-    inp.oninput = () => { cfg.names[p] = inp.value.trim() || 'Player ' + (p + 1); store.set('names', cfg.names); scheduleClaim(); };
+    inp.value = isDefaultName(cfg.names[p] || '') ? '' : cfg.names[p];
+    inp.oninput = () => { cfg.names[p] = inp.value.trim() || 'Player ' + (p + 1); store.set('names', cfg.names); scheduleClaim();
+      if (document.getElementById('nameWarn').textContent) { inp.classList.remove('need'); document.getElementById('nameWarn').textContent = ''; document.getElementById('enterHint').style.display = ''; } };
   }
   const seg = (id, opts, cur, set) => {
     const el = document.getElementById(id); el.innerHTML = '';
