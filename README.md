@@ -36,7 +36,19 @@ You can also use gamepads (right trigger to accelerate, left trigger to brake, s
 - **Track limits**: all four wheels past the kerb deletes the lap. After 3 warnings, each offence adds +5 s. Cutting a corner forces you to slow down and give the time back.
 - **Braking boards** stand 150 / 100 / 50 m before each big braking zone.
 
-Track records are saved in your own browser.
+## Track records
+
+The **🏆 Records** table on the menu shows the best valid lap for every circuit, with separate columns for Arcade and F1 handling. It starts with Claude's hot laps as the times to beat:
+
+| Circuit | Arcade | F1 |
+|---|---|---|
+| Algarve | 1:31.258 | 1:22.833 |
+| Spa-Francorchamps | 1:58.500 | 1:47.958 |
+| Monza | 1:26.975 | 1:22.258 |
+| Red Bull Ring | 1:11.033 | 1:05.583 |
+| Silverstone | 1:41.775 | 1:33.775 |
+
+Beat one of these and your name replaces Claude's. Your records are saved in your own browser.
 
 ## Files
 
