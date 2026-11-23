@@ -162,7 +162,7 @@
         <div><b>ERS</b> – hold boost for extra power; it recharges when you brake.</div>
         <div><b>DRS</b> – from lap 2, <span id="drsTip">cross the detection line</span> less than 1 s behind and the rear wing opens on the next straight. In single player it opens in every DRS zone.</div>
         <div><b>Slipstream</b> – sit right behind your rival for a tow.</div>
-        <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run.</div>
+        <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run. <kbd>T</kbd> shows the lap telemetry.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Handling</b> – F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it); Arcade is forgiving. Records are kept separately.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
@@ -190,6 +190,22 @@
   </div>
 </div>
 
+<div id="telOv" class="overlay" style="z-index:7">
+  <div class="panel" style="width:min(1080px,100%)">
+    <div class="checker"></div>
+    <div class="inner" style="padding-bottom:16px">
+      <h1 style="font-size:32px">LAP <span>TELEMETRY</span></h1>
+      <div class="sub" id="telSub"></div>
+      <canvas id="telCanvas" style="width:100%;height:auto;display:block;margin-top:10px;border-radius:8px;background:#0f1216"></canvas>
+      <div class="go" style="margin-top:12px">
+        <button class="btn" id="telCloseBtn">Close (T / Esc)</button>
+        <button class="btn ghost" id="telPlayerBtn" style="display:none">Show player 2</button>
+        <span class="rec">Speed (km/h) and the gap along the lap · red bars: where you braked · gold: the reference lap</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="pause" class="overlay">
   <div class="panel" style="width:min(420px,100%)">
     <div class="checker"></div>
@@ -198,6 +214,7 @@
       <div class="go" style="justify-content:center;flex-direction:column;gap:10px">
         <button class="btn" id="resumeBtn" style="width:100%">Resume (Esc)</button>
         <button class="btn ghost" id="restartBtn" style="width:100%">Restart race (R)</button>
+        <button class="btn ghost" id="telPauseBtn" style="width:100%">📈 Telemetry (T)</button>
         <button class="btn ghost" id="quitBtn" style="width:100%">Main menu (Q)</button>
       </div>
     </div>
@@ -216,6 +233,7 @@
       <div class="go">
         <button class="btn" id="rematchBtn">Rematch (Enter)</button>
         <button class="btn ghost" id="menuBtn">Menu (Esc)</button>
+        <button class="btn ghost" id="telResBtn">📈 Telemetry (T)</button>
       </div>
     </div>
   </div>
@@ -1515,6 +1533,106 @@ function setPause(p) {
   if (state !== 'race' && state !== 'countdown') return;
   paused = p; show('pause', p); AU.pause(p);
 }
+// ---------------------------------------------------------------- lap telemetry
+// Last completed lap against a reference – the record ghost when one is loaded, otherwise your previous best –
+// from the time at every 10 m: speed trace, gap along the lap, braking zones, sectors and the speed at each turn.
+let telWho = 0, telResume = false;
+function openTel() {
+  if (state !== 'race' && state !== 'results') return;
+  telResume = state === 'race' && !paused;
+  if (state === 'race') { paused = true; AU.pause(true); show('pause', false); }
+  telWho = 0; show('telOv', true); drawTel();
+}
+function closeTel() {
+  show('telOv', false);
+  if (state === 'race') { if (telResume) { paused = false; AU.pause(false); } else show('pause', true); }
+}
+function drawTel() {
+  const hs = humans(), c = hs[telWho] || hs[0], cv = document.getElementById('telCanvas'), sub = document.getElementById('telSub');
+  document.getElementById('telPlayerBtn').style.display = hs.length > 1 ? '' : 'none';
+  document.getElementById('telPlayerBtn').textContent = 'Show ' + (hs[1 - telWho] ? hs[1 - telWho].name : 'player 2');
+  const W2 = 1000, H2 = 560, dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = W2 * dpr; cv.height = H2 * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = '#0f1216'; g.fillRect(0, 0, W2, H2);
+  const L = c && c.lastTel;
+  if (!L || L.tr.length < 5) { sub.textContent = (c ? c.name + ' · ' : '') + 'Drive a full lap first'; g.fillStyle = '#9aa1ab'; g.font = '600 20px Segoe UI, sans-serif'; g.textAlign = 'center'; g.fillText('No lap yet – finish a lap and open this again (T).', W2 / 2, H2 / 2); return; }
+  // reference: record ghost (hot lap, same track + handling), else the best lap before this one
+  let ref = null, refName = '';
+  if (isHot() && recGhost && recGhost.tr && recGhost.tr.length > 5) { ref = recGhost.tr; refName = `record ghost · ${recGhost.name} ${fmt(recGhost.t)}`; }
+  else if (L.prevTr && L.prevTr.length > 5 && isFinite(L.prevT)) { ref = L.prevTr; refName = `your previous best · ${fmt(L.prevT)}`; }
+  const n = Math.floor(T.L / 10), tr = L.tr.slice(0, n + 1); tr[n] = tr[n] ?? L.t;
+  const refEnd = ref ? (ref === (recGhost && recGhost.tr) ? recGhost.t : L.prevT) : 0, rf = ref ? ref.slice(0, n + 1) : null; if (rf) rf[n] = rf[n] ?? refEnd;
+  // speed over 30 m windows (the lap is timed every 10 m), then lightly smoothed
+  const spd = arr => {
+    const v = [];
+    for (let k = 0; k < n; k++) { const a = arr[Math.max(0, k - 1)], b = arr[Math.min(n, k + 2)], d = (Math.min(n, k + 2) - Math.max(0, k - 1)) * 10; v[k] = a != null && b != null && b > a ? d * 3.6 / (b - a) : null; }
+    const w = v.slice(); for (let k = 2; k < n - 2; k++) if ([-2, -1, 0, 1, 2].every(q => v[k + q] != null)) w[k] = (v[k - 2] + 2 * v[k - 1] + 3 * v[k] + 2 * v[k + 1] + v[k + 2]) / 9;
+    return w;
+  };
+  const sv = spd(tr), rv = rf ? spd(rf) : null;
+  const gap = rf ? tr.map((t, k) => t != null && rf[k] != null ? t - rf[k] : null) : null;
+  sub.textContent = `${c.name} · lap ${L.lap} ${fmt(L.t)}${L.invalid ? ' (deleted)' : ''}` + (ref ? ` vs ${refName} · ${L.t - refEnd >= 0 ? '+' : '−'}${Math.abs(L.t - refEnd).toFixed(3)} s` : ' · no reference lap yet');
+  // layout
+  const x0 = 56, x1 = W2 - 16, X = d => x0 + (x1 - x0) * d / T.L;
+  const sTop = 24, sBot = 300, gTop = 330, gBot = 440, bY = 452;
+  const vmax = Math.max(...sv.filter(v => v != null), ...(rv || []).filter(v => v != null)) * 1.05, vmin = 0;
+  const VY = v => sBot - (sBot - sTop) * (v - vmin) / (vmax - vmin);
+  g.font = '600 11px Segoe UI, sans-serif'; g.textAlign = 'right'; g.fillStyle = '#6b7280'; g.strokeStyle = '#232830'; g.lineWidth = 1;
+  for (let v = 0; v <= vmax; v += vmax > 200 ? 50 : 20) { g.beginPath(); g.moveTo(x0, VY(v)); g.lineTo(x1, VY(v)); g.stroke(); g.fillText(Math.round(v), x0 - 6, VY(v) + 4); }
+  // sector lines + turn labels
+  g.strokeStyle = '#3a4150'; g.setLineDash([4, 4]);
+  for (const f of [1 / 3, 2 / 3]) { g.beginPath(); g.moveTo(X(T.L * f), sTop); g.lineTo(X(T.L * f), bY + 10); g.stroke(); }
+  g.setLineDash([]); g.textAlign = 'center'; g.fillStyle = '#9aa1ab';
+  for (const l of T.labels) if (l.ref) g.fillText('T' + l.ref, X(T.S[l.i]), sTop - 8);
+  // braking bars (you) and the reference's braking starts
+  g.fillStyle = 'rgba(255,70,70,.75)';
+  for (let k = 0; k < n; k++) if (L.brk[k]) g.fillRect(X(k * 10), bY, Math.max(1, X(10) - X(0)), 9);
+  if (rv) {         // reference braking: where its speed starts falling for real (≥ 3 bins in a row, ≥ 12 km/h in total)
+    g.fillStyle = '#ffc83d';
+    for (let k = 1; k < n - 3; k++) {
+      if ([0, 1, 2, 3].some(q => rv[k + q - 1] == null)) continue;
+      const fall = rv[k] < rv[k - 1] - 0.8 && rv[k + 1] < rv[k] - 0.8 && rv[k + 2] < rv[k + 1] - 0.8 && rv[k - 1] - rv[k + 2] > 12;
+      const before = k > 1 && rv[k - 2] != null && rv[k - 1] < rv[k - 2] - 0.8;
+      if (fall && !before) g.fillRect(X(k * 10) - 1.5, bY + 11, 4, 8);
+    }
+  }
+  g.fillStyle = '#6b7280'; g.textAlign = 'left'; g.fillText('BRAKING', 4, bY + 9); g.fillText('REF', 4, bY + 19);
+  // speed traces
+  const line = (v, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); let on = false; for (let k = 0; k < n; k++) { if (v[k] == null) { on = false; continue; } const px = X(k * 10 + 5), py = VY(v[k]); on ? g.lineTo(px, py) : g.moveTo(px, py); on = true; } g.stroke(); };
+  if (rv) line(rv, '#ffc83d', 2);
+  line(sv, '#5cd0ff', 2.4);
+  // gap along the lap
+  g.fillStyle = '#6b7280'; g.textAlign = 'right';
+  if (gap) {
+    const gv = gap.filter(v => v != null), gm = Math.max(0.2, ...gv.map(Math.abs)) * 1.1, GY = v => (gTop + gBot) / 2 - (gBot - gTop) / 2 * v / gm;
+    g.strokeStyle = '#3a4150'; g.beginPath(); g.moveTo(x0, GY(0)); g.lineTo(x1, GY(0)); g.stroke();
+    g.fillText('+' + gm.toFixed(1) + 's', x0 - 6, gTop + 8); g.fillText('−' + gm.toFixed(1) + 's', x0 - 6, gBot); g.fillText('GAP', x0 - 6, GY(0) + 4);
+    for (let k = 0; k < n; k++) { if (gap[k] == null || gap[k + 1] == null) continue; g.strokeStyle = gap[k + 1] > gap[k] ? '#ff5a5a' : '#2bd96b'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(X(k * 10), GY(gap[k])); g.lineTo(X(k * 10 + 10), GY(gap[k + 1])); g.stroke(); }
+    // sector deltas
+    g.font = '800 13px Segoe UI, sans-serif'; g.textAlign = 'center';
+    [0, 1, 2].forEach(sc => {
+      const a = Math.round(n * sc / 3), b = sc === 2 ? n : Math.round(n * (sc + 1) / 3);
+      if (gap[a] == null || gap[b] == null) return; const d = gap[b] - gap[a];
+      g.fillStyle = d > 0.005 ? '#ff7b7b' : '#4be08a'; g.fillText(`S${sc + 1} ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(3)}`, X(T.L * (sc + 0.5) / 3), gBot + 0);
+    });
+  } else { g.textAlign = 'center'; g.fillStyle = '#6b7280'; g.fillText('Gap: needs a reference lap (set a best lap, or chase the record ghost in Hot lap)', (x0 + x1) / 2, (gTop + gBot) / 2); }
+  // speed at each turn: minimum around the turn, you vs reference
+  g.textAlign = 'left'; g.font = '700 12px Segoe UI, sans-serif';
+  let tx = 8, ty = 494;
+  const minAround = (v, i) => { let m = Infinity; for (let k = Math.max(0, Math.floor(T.S[i] / 10) - 4); k <= Math.min(n - 1, Math.floor(T.S[i] / 10) + 4); k++) if (v[k] != null) m = Math.min(m, v[k]); return isFinite(m) ? m : null; };
+  g.fillStyle = '#9aa1ab'; g.fillText('MIN SPEED', tx, ty); tx += 84;
+  for (const l of T.labels) {
+    if (!l.ref) continue; const a = minAround(sv, l.i), b = rv ? minAround(rv, l.i) : null; if (a == null) continue;
+    const txt = `T${l.ref} ${Math.round(a)}` + (b != null ? ` (${a - b >= 0 ? '+' : '−'}${Math.abs(Math.round(a - b))})` : '');
+    g.font = '700 12px Segoe UI, sans-serif'; const w = g.measureText(txt).width + 18;
+    if (tx + w > W2 - 8) { tx = 92; ty += 20; }
+    g.fillStyle = b == null ? '#dfe3e8' : a >= b ? '#4be08a' : '#ff7b7b'; g.fillText(txt, tx, ty); tx += w;
+  }
+  const top = Math.max(...sv.filter(v => v != null)), rtop = rv ? Math.max(...rv.filter(v => v != null)) : null;
+  g.fillStyle = '#9aa1ab'; g.fillText(`TOP SPEED  ${Math.round(top)} km/h` + (rtop ? `  (reference ${Math.round(rtop)})` : ''), 8, H2 - 12);
+  g.fillStyle = '#5cd0ff'; g.fillRect(W2 - 250, H2 - 22, 18, 4); g.fillStyle = '#dfe3e8'; g.fillText('this lap', W2 - 226, H2 - 16);
+  if (rv) { g.fillStyle = '#ffc83d'; g.fillRect(W2 - 150, H2 - 22, 18, 4); g.fillStyle = '#dfe3e8'; g.fillText('reference', W2 - 126, H2 - 16); }
+}
 function show(id, on) { document.getElementById(id).classList.toggle('show', on); }
 function cycleCam(c) {
   c.camMode = CAM_MODES[(CAM_MODES.indexOf(c.camMode) + 1) % CAM_MODES.length];
@@ -1524,6 +1642,7 @@ function cycleCam(c) {
 
 function onKeyPress(code) {
   if (code === 'KeyM') { AU.toggleMute(); return; }
+  if (document.getElementById('telOv').classList.contains('show')) { if (code === 'Escape' || code === 'KeyT' || code === 'Enter') closeTel(); return; }
   if (state === 'menu') {
     if (document.getElementById('recordsOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('recordsOv', false); return; }
     if (document.getElementById('helpOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('helpOv', false); return; }
@@ -1531,6 +1650,7 @@ function onKeyPress(code) {
     return;
   }
   if (state === 'results') {
+    if (code === 'KeyT') { openTel(); return; }
     if (code === 'Enter' || code === 'NumpadEnter') resultsNext();
     else if (code === 'Escape') toMenu();
     return;
@@ -1539,8 +1659,10 @@ function onKeyPress(code) {
     if (code === 'Escape') setPause(false);
     else if (code === 'KeyR') startRace(false);
     else if (code === 'KeyQ') toMenu();
+    else if (code === 'KeyT') openTel();
     return;
   }
+  if (code === 'KeyT' && state === 'race') { openTel(); return; }
   if (code === 'Escape') setPause(true);
   if (code === 'KeyR' && isHot()) { startRace(false); return; }
   if (code === 'KeyG' && isHot()) {
@@ -1772,7 +1894,7 @@ function step(dt) {
     if (c.finished) return;
     if (!c.timing && c.prog >= 0) {          // hot lap: the timed lap starts at the line
       c.timing = true; c.lapStart = c.sectorStart = simTime; c.lapInvalid = false; c.curSec = []; c.secIdx = 0; c.ers = 1; lateLimits(c);
-      c.curTrace = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
+      c.curTrace = []; c.curBrk = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
       if (!c.lapInvalid) say(c, 'TIMED LAP', GREEN, 1.4);
     }
     if (c.timing) {
@@ -1781,7 +1903,7 @@ function step(dt) {
         sectorDone(c, c.secIdx, simTime - c.sectorStart); c.sectorStart = simTime; c.secIdx++;
       }
       const kk = Math.floor(within / 10);   // time at every 10 m, for the live delta
-      while (c.traceK <= kk && c.traceK < 4000) c.curTrace[c.traceK++] = simTime - c.lapStart;
+      while (c.traceK <= kk && c.traceK < 4000) { (c.curBrk || (c.curBrk = []))[c.traceK] = c.brakeIn > 0.3 ? 1 : 0; c.curTrace[c.traceK++] = simTime - c.lapStart; }
       if (isHot() && simTime - c.lapStart >= c.gNext) {
         c.gRec.push([+(simTime - c.lapStart).toFixed(3), +c.x.toFixed(2), +c.y.toFixed(2), +c.h.toFixed(3)]);
         c.gNext += 0.05;
@@ -1910,6 +2032,7 @@ function lapDone(c) {
   const invalid = c.lapInvalid;
   const lapRec = isHot() ? c.gRec : null;
   const refT = Math.min(c.best, isHot() && ghost ? ghost.t : Infinity);
+  c.lastTel = { tr: c.curTrace, brk: c.curBrk || [], t: lt, invalid, lap: c.lapsDone + 1, prevTr: c.bestTrace, prevT: c.best };
   if (!invalid && lt < refT) {
     c.bestTrace = c.curTrace;
     if (isHot() && c.gRec && c.gRec.length > 10) {
@@ -1918,7 +2041,7 @@ function lapDone(c) {
       ghost.name = 'Your best'; pickGhost();
     }
   }
-  c.curTrace = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
+  c.curTrace = []; c.curBrk = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
   c.lapTimes.push(lt); c.last = lt; c.lastInvalid = invalid; c.lapInvalid = false; c.lapsDone++;
   c.lapStart = c.sectorStart = simTime; c.secIdx = 0;
   c.lastSec = c.curSec; c.lastSecT = 3; c.curSec = [];
@@ -4019,6 +4142,10 @@ document.getElementById('startBtn').onclick = () => startFromMenu();
 document.getElementById('resumeBtn').onclick = () => setPause(false);
 document.getElementById('restartBtn').onclick = () => startRace(false);
 document.getElementById('quitBtn').onclick = () => toMenu();
+document.getElementById('telPauseBtn').onclick = () => openTel();
+document.getElementById('telResBtn').onclick = () => openTel();
+document.getElementById('telCloseBtn').onclick = () => closeTel();
+document.getElementById('telPlayerBtn').onclick = () => { telWho = 1 - telWho; drawTel(); };
 document.getElementById('rematchBtn').onclick = () => resultsNext();
 document.getElementById('menuBtn').onclick = () => toMenu();
 document.getElementById('recordsBtn').onclick = () => { showRecords(); fetchOnline(); };
