@@ -200,6 +200,7 @@
         <div class="opt" id="ghostOpt">Ghost <div class="seg" id="ghostSeg"></div></div>
         <div class="opt">Track <div class="seg" id="trackSeg"></div></div>
         <div class="opt">Karts <div class="seg" id="kartSeg"></div></div>
+        <div class="opt">Stunt <div class="seg" id="stuntSeg"></div></div>
         <div class="opt" id="lapsOpt">Laps <div class="seg" id="lapsSeg"></div></div>
         <div class="opt">Camera <div class="seg" id="camSeg"></div></div>
         <div class="opt" id="cpuOpt">CPU <div class="seg" id="cpuSeg"></div><div class="seg" id="cpuLvlSeg"></div></div>
@@ -239,6 +240,7 @@
         <div><b>🌐 Online</b> – one of you creates a room and shares the 4-letter code (or the invite link); everyone joins from their own browser and the host picks the track, Race or Hot lap together, and starts it for everyone. Each car is driven on its own computer and the others appear live (a fraction of a second behind). No contact between cars yet; pausing doesn't stop an online race.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
         <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records. <b>🏆 Cup</b> (next to the tracks): all six tracks in a row, points 10-8-6-5-4-3-2.</div>
+        <div><b>Stunt tracks</b> – short time-attack circuits: full-width boost pads, big jump ramps, ice and dirt patches, hills and two checkpoints with your split against your best lap. Beat the medal times (🏁 Author, 🥇 Gold, 🥈 Silver, 🥉 Bronze) shown on the menu; Hot lap is the time attack, <kbd>R</kbd> restarts.</div>
         <div><b>Chaos</b> – mystery boxes give you Turbo Brick, Oil Slick, Loose Tyre, Safety Car (slows the leader), Local Shower (rain on the car ahead), Phantom (drive through anything), Brick Wall (drop behind) or Pit Stop (fixes you). The boost key fires it; whoever is behind gets better items. Blue pads boost you, yellow ramps launch you. <b>Drift</b>: hold throttle + brake while steering – blue sparks after 1 s, orange after 2 s – and let go for a boost. The weather changes every lap.</div>
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · <kbd>T</kbd> telemetry · <kbd>V</kbd> replay (results/pause: TV, onboard, rear or free camera, 0.25×–4×) · <kbd>P</kbd> photo mode · gamepads work too.</div>
       </div>
@@ -598,12 +600,54 @@ const TRACKS = {
     theme: { sky: '#a3c8ec', fog: '#cbdbea', fogNear: 400, fogFar: 2600, hemiGround: '#5a6b3a', grass: ['#5c8f45', '#64974a'], outerNear: '#6a9450', outerFar: '#8f9a60', ground: '#6f8048', trees: 'broadleaf', treeCount: 0, hills: 0, bumps: 0, margin: 1300,
       kerb: ['#ffd400', '#1b1b1b'], tyres: ['#e9e9e9', '#d62828', '#e9e9e9'], gantry: AERO.navy },
   },
+  // Stunt tracks (see stuntDef): seed = the layout, author = Claude's lap (the medal times are worked out from it)
+  st1: stuntDef('st1', 1, 'Brickyard', { seed: 17, n: 9, r: 215, straight: 130, ramps: 2, pads: 3, hills: 6, author: 27.042 },
+    { sky: '#94c3ee', fog: '#c5dbee', hemiGround: '#5a6b3a', grass: ['#4f8a3a', '#57923f'], outerNear: '#5f8a42', outerFar: '#8a8a55', ground: '#6f7f45' }),
+  st2: stuntDef('st2', 2, 'Icebox', { seed: 38, n: 10, r: 210, straight: 120, ramps: 1, pads: 3, ice: 2, hills: 5, author: 31.15 },
+    { sky: '#bcd6ee', fog: '#e1ebf3', hemiGround: '#a9b4bc', grass: ['#e8eef2', '#dfe7ec'], outerNear: '#e9eff3', outerFar: '#cfd9e0', ground: '#dfe6eb', trees: 'spruce', treeCount: 160 }),
+  st3: stuntDef('st3', 3, 'Dust Bowl', { seed: 47, n: 9, r: 225, straight: 130, ramps: 2, pads: 3, dirt: 2, hills: 8, author: 26.958 },
+    { sky: '#9fd0f5', fog: '#ecdcc0', hemiGround: '#9a7a4f', grass: ['#d6b07a', '#cfa872'], outerNear: '#d9b47c', outerFar: '#c79a5e', ground: '#c9a06a', treeCount: 25, bumps: 1.2 }),
+  st4: stuntDef('st4', 4, 'Rollercoaster', { seed: 20, n: 10, r: 215, straight: 130, ramps: 2, pads: 2, dirt: 1, hills: 24, author: 23.533 },
+    { sky: '#a9c9e8', fog: '#d6dde2', hemiGround: '#6b5a3a', grass: ['#6f8f3a', '#789845'], outerNear: '#8a8a40', outerFar: '#a0703a', ground: '#8a7a45', treeCount: 200, hills: 70 }),
+  st5: stuntDef('st5', 5, 'Boost Alley', { seed: 53, n: 9, r: 185, sx: 1.5, straight: 120, ramps: 3, pads: 6, ice: 1, hills: 10, author: 29.892 },
+    { sky: '#f2b48e', fog: '#f1cdb0', hemiGround: '#6a4a5a', grass: ['#45703a', '#4c783f'], outerNear: '#5a7a42', outerFar: '#9a7a55', ground: '#5f7445' }),
 };
+// ---- Stunt tracks: short generated circuits for time attack, Trackmania-style. Seeded, so everyone gets the same five:
+// a loop of straights and tight corners between walls, then boost pads, big jump ramps, ice or dirt patches, hills,
+// two checkpoints (stuntSurfaces / stuntProps) and medal times to beat. Raced in the F1 car.
+function stuntRaw(seed, o) {
+  const rnd = mulberry(seed), n = o.n, pts = [];
+  for (let k = 0; k < n; k++) {
+    const a = (k + (rnd() - 0.5) * 0.55) / n * 2 * Math.PI, r = o.r * (0.55 + rnd() * 0.65);
+    pts.push([Math.cos(a) * r * (o.sx || 1), Math.sin(a) * r]);
+  }
+  const raw = [];
+  for (let k = 0; k < n; k++) {          // long edges get two extra points, so they stay straight and the corners stay tight
+    const a = pts[k], b = pts[(k + 1) % n], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    raw.push(a);
+    if (d > o.straight) for (const f of [0.2, 0.8]) raw.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
+  }
+  return raw;
+}
+function stuntDef(id, num, name, o, theme) {
+  const raw = stuntRaw(o.seed, o), rnd = mulberry(o.seed * 7 + 3);
+  let best = 0, sl = raw[0], per = 0;             // the start line: halfway down the longest straight
+  raw.forEach((a, i) => { const b = raw[(i + 1) % raw.length], d = Math.hypot(b[0] - a[0], b[1] - a[1]); per += d; if (d > best) { best = d; sl = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; } });
+  const heightKeys = [];
+  for (let q = 1; q <= 5; q++) heightKeys.push(['sf', per * q / 6, Math.round(rnd() * (o.hills || 0))]);
+  return {
+    id, title: name.toUpperCase(), full: `Stunt ${num} · ${name}`, place: 'Brick Prix Stunt Park', km: '', turns: 0, recordKey: 'record.' + id,
+    stunt: o, walls: true, raw, startLine: sl, startH: 0, pts: { sf: sl }, labels: [], heightKeys, drs: [], autoTurns: true, turnK: 1 / 75, turnGap: 45,
+    drsText: 'no DRS – hit the boost pads', dims: { half: 6.5, kerb: 7.2, runoff: 7.6, wall: 8.6, sp: 2 },
+    theme: Object.assign({ fogNear: 380, fogFar: 2000, trees: 'broadleaf', treeCount: 120, hills: 40, bumps: 0.6, margin: 420,
+      tyres: ['#41c6ba', '#f4f4f4', '#11406b'], kerb: ['#f4f4f4', '#11406b'], gantry: '#11406b' }, theme),
+  };
+}
 const PURPLE = '#b65cff', GREEN = '#2bd96b', YELLOW = '#ffd23f';
 const CAM_MODES = ['onboard', 'rear', 'tv'];
 const CAM_NAMES = { onboard: 'ONBOARD', rear: 'REAR CAM', tv: 'TV CAMERA' };
-const TRACK_ORDER = ['spa', 'rbr', 'monza', 'silverstone', 'algarve', 'monaco', 'chaves', 'graz', 'lowg'];
-const TRACK_SHORT = { monaco: 'Monaco', algarve: 'Algarve', spa: 'Spa', monza: 'Monza', rbr: 'Red Bull Ring', silverstone: 'Silverstone', chaves: 'Chaves', graz: 'Graz', lowg: 'Graz Airport' };
+const TRACK_ORDER = ['spa', 'rbr', 'monza', 'silverstone', 'algarve', 'monaco', 'chaves', 'graz', 'lowg', 'st1', 'st2', 'st3', 'st4', 'st5'];
+const TRACK_SHORT = { st1: 'Brickyard', st2: 'Icebox', st3: 'Dust Bowl', st4: 'Rollercoaster', st5: 'Boost Alley', monaco: 'Monaco', algarve: 'Algarve', spa: 'Spa', monza: 'Monza', rbr: 'Red Bull Ring', silverstone: 'Silverstone', chaves: 'Chaves', graz: 'Graz', lowg: 'Graz Airport' };
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -630,6 +674,7 @@ function loadTrackData(id) {
   T = buildTrack(TRACK);
   if (TRACK.kart) { T.wallW = buildWalls(); TRACK.turns = T.labels.length; }
   else if (TRACK.walls) T.wallW = buildWalls();          // street circuit: barriers at the edge of the road everywhere
+  if (TRACK.stunt) { TRACK.turns = T.labels.length; TRACK.km = (T.L / 1000).toFixed(2) + ' km'; }
   T.cross = [];
   if (TRACK.airport) for (let i = 0; i < T.N; i++) {
     const j = (i + 1) % T.N;
@@ -641,8 +686,10 @@ function loadTrackData(id) {
   TREES = makeTrees();
   STATIONS = buildStations();
   if (TRACK.tunnel) STATIONS = tunnelStations(STATIONS);
+  T.zg = TRACK.stunt ? stuntSurfaces() : null;            // stunt: grip of the ice / dirt patches, per sample
   T.boards = brakeBoards();
-  if (TRACK.kart) T.boards = [];          // no 150/100/50 boards on a 600 m kart track
+  if (TRACK.kart || TRACK.stunt) T.boards = [];          // no 150/100/50 boards on a 600 m kart track (or a stunt track)
+  if (TRACK.stunt) stuntProps();
 }
 // Kart track: sections run close side by side, so the barrier on each side sits where the nearest
 // centreline would switch to another part of the track (or at WALL), measured sample by sample.
@@ -711,13 +758,13 @@ function brakeBoards() {
   const N = T.N, v = new Float64Array(N), vc = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     let k = 0; for (let q = -3; q <= 3; q++) k += Math.abs(T.K[(i + q + N) % N]); k /= 7;
-    const R = 1 / (k + 1e-6), den = 1 - G * hd().latB * R;
-    v[i] = den <= 0 ? VEH.vmax : Math.min(VEH.vmax, Math.sqrt(G * hd().latA * R / den));
+    const R = 1 / (k + 1e-6), gz = T.zg ? T.zg[i] : 1, den = 1 - G * hd().latB * gz * R;
+    v[i] = den <= 0 ? VEH.vmax : Math.min(VEH.vmax, Math.sqrt(G * hd().latA * gz * R / den));
     vc[i] = R;
   }
   T.Rc = vc;                       // corner radius per sample, for the CPU speed profiles
   const pb = hd().profBrake;
-  for (let n = 2 * N; n > 0; n--) { const i = n % N, j = (i + 1) % N; v[i] = Math.min(v[i], Math.sqrt(v[j] ** 2 + 2 * pb * segLen(i))); }
+  for (let n = 2 * N; n > 0; n--) { const i = n % N, j = (i + 1) % N; v[i] = Math.min(v[i], Math.sqrt(v[j] ** 2 + 2 * pb * (T.zg ? T.zg[i] : 1) * segLen(i))); }
   for (let n = 1; n <= 2 * N; n++) { const i = n % N, j = (i - 1 + N) % N; v[i] = Math.min(v[i], Math.sqrt(v[j] ** 2 + 2 * (TRACK.kart ? 4 : 9) * segLen(j))); }
   const zones = [];
   let i0 = 0; while (v[(i0 + 1) % N] < v[i0] - 1e-6) i0++;    // start outside a braking zone
@@ -847,9 +894,9 @@ function buildTrack(def) {
     let last = -1e9;
     for (let i = 0; i < N; i++) {
       const k = Math.abs(aK(i));
-      if (k < 1 / 28) continue;
+      if (k < (def.turnK || 1 / 28)) continue;
       let peak = true; for (let q = -8; q <= 8 && peak; q++) if (q && Math.abs(aK((i + q + N) % N)) > k) peak = false;
-      if (!peak || S[i] - last < 14) continue;
+      if (!peak || S[i] - last < (def.turnGap || 14)) continue;
       last = S[i]; tr.labels.push({ i, side: aK(i) > 0 ? -1 : 1, ref: String(tr.labels.length + 1), name: '', h: null });
     }
     const tn = def.turnNames, ls = tr.labels;
@@ -1351,11 +1398,11 @@ function cpuItem(c) {
 function cpuProfile(q, bk, k) {     // q: share of its grip it uses in corners, k: its grip bonus
   const N = T.N, H = hd(), v = new Float32Array(N);
   for (let i = 0; i < N; i++) {
-    const R = T.Rc[i], den = 1 - q * G * H.latB * R;
-    v[i] = den <= 0 ? 200 : Math.min(200, Math.sqrt(q * G * H.latA * R / den));
+    const R = T.Rc[i], gq = q * (T.zg ? T.zg[i] : 1), den = 1 - gq * G * H.latB * R;
+    v[i] = den <= 0 ? 200 : Math.min(200, Math.sqrt(gq * G * H.latA * R / den));
   }
   for (let n = 2 * N; n > 0; n--) {
-    const i = n % N, j = (i + 1) % N, a = G * (H.brkA + H.brkB * v[j] * v[j]) * bk * k;
+    const i = n % N, j = (i + 1) % N, a = G * (H.brkA + H.brkB * v[j] * v[j]) * bk * k * (T.zg ? T.zg[i] : 1);
     v[i] = Math.min(v[i], Math.sqrt(v[j] * v[j] + 2 * a * segLen(i)));
   }
   return v;
@@ -1471,7 +1518,7 @@ const ITEM_LIST = ['turbo', 'oil', 'shower', 'tyre', 'phantom', 'sc', 'wall', 't
 const ITEM_SHORT = { turbo: 'TURBO', triple: 'TURBO', oil: 'OIL', tyre: 'TYRE', sc: 'SAFETY CAR', shower: 'SHOWER', phantom: 'PHANTOM', wall: 'WALL', pit: 'PIT STOP' };
 const WEATHER = { dry: ['SKIES CLEARING', '#ffd23f', ''], rain: ['RAIN – LESS GRIP', '#7fc4ff', '🌧 RAIN'], glitter: ['GLITTER STORM!', '#ff7bd5', '✨ GLITTER'] };
 // grip multiplier from a shower cloud and the weather (always 1 outside Chaos)
-function gripMul(c) { return (c.showerT > 0 ? 0.62 : 1) * (weather === 'rain' ? 0.82 : 1) * (dailyNow && isDaily() && dailyNow.cond.grip || 1); }
+function gripMul(c) { return (c.showerT > 0 ? 0.62 : 1) * (weather === 'rain' ? 0.82 : 1) * (dailyNow && isDaily() && dailyNow.cond.grip || 1) * (T.zg ? T.zg[c.ti] : 1); }
 function rollWeather(first) {
   const table = first ? [['dry', 6], ['rain', 2.5], ['glitter', 1.5]] : [['dry', 4], ['rain', 3.5], ['glitter', 2.5]];
   let r = Math.random() * table.reduce((a, t) => a + t[1], 0);
@@ -1669,27 +1716,101 @@ function chaosCar(c, inp, dt) {           // per car, every physics step
     else if (c.driftT > 1) { c.turboT = Math.max(c.turboT, 1.0); say(c, 'DRIFT BOOST', '#5cd0ff', 1.0); AU.beep(1000, 0.1, 0.1); }
     c.drifting = false; c.driftT = 0;
   }
-  // boost pads
+  propsCar(c);
+}
+// boost pads and jump ramps (Chaos, and the stunt tracks in every mode); stunt pads and ramps span the whole road
+function propsCar(c) {
+  if (c.air) return;
   if (c.padT <= 0) for (const q of pads) {
-    if ((c.x - q.x) ** 2 + (c.y - q.y) ** 2 > 36 * KS * KS) continue;
+    const hl = (q.len || 8) / 2 * KS, hw = q.w ? q.w / 2 : 2.6 * KS;
+    if ((c.x - q.x) ** 2 + (c.y - q.y) ** 2 > (hl + hw) ** 2) continue;
     const l = localOf(q, c);
-    if (Math.abs(l.along) < 4 * KS && Math.abs(l.side) < 2.6 * KS) {
-      c.turboT = Math.max(c.turboT, 1.0); c.padT = 1;
+    if (Math.abs(l.along) < hl && Math.abs(l.side) < hw) {
+      c.turboT = Math.max(c.turboT, q.t || 1.0); c.padT = 1;
       if (!c.cpu) AU.beep(1400, 0.08, 0.08);
     }
   }
   // jump ramps: ride up the slope; leave the top fast enough and you fly
   for (const r of ramps) {
-    if ((c.x - r.x) ** 2 + (c.y - r.y) ** 2 > 25) continue;
+    const hl = (r.len || 6) / 2, hw = r.w || 3.1, H = r.H || RAMP_H;
+    if ((c.x - r.x) ** 2 + (c.y - r.y) ** 2 > (hl + hw) ** 2) continue;
     const l = localOf(r, c);
-    if (Math.abs(l.side) > 3.1 || l.along < -3 || l.along > 3) continue;
-    const lift = (l.along + 3) / 6 * RAMP_H, fwd = c.vx * Math.cos(r.h) + c.vy * Math.sin(r.h);
-    c.alt += lift; c.pitch = Math.atan(RAMP_H / 6);
-    if (l.along > 2 && fwd > 15) {
-      c.air = true; c.airAlt = c.alt; c.airV = clamp(fwd * 0.07, 3.5, 6.5);
+    if (Math.abs(l.side) > hw || l.along < -hl || l.along > hl) continue;
+    const lift = (l.along + hl) / (2 * hl) * H, fwd = c.vx * Math.cos(r.h) + c.vy * Math.sin(r.h);
+    c.alt += lift; c.pitch = Math.atan(H / (2 * hl));
+    if (l.along > hl - 1 && fwd > 15) {
+      c.air = true; c.airAlt = c.alt; c.airV = r.big ? clamp(fwd * 0.065, 3.5, 6) : clamp(fwd * 0.07, 3.5, 6.5);
       if (!c.cpu) { say(c, 'AIRBORNE!', '#ffd23f', 0.9); AU.beep(700, 0.15, 0.08); }
     }
   }
+  if (T.zt && !c.cpu) {                   // entering a patch of ice or dirt
+    const z = T.zt[c.ti];
+    if (z && z !== c.zoneIn) say(c, z === 1 ? '❄ ICE – GENTLE!' : 'DIRT – LESS GRIP', z === 1 ? '#bfeaff' : '#e0b07a', 1.4);
+    c.zoneIn = z;
+  }
+}
+// ---------------------------------------------------------------- stunt tracks: surfaces, pads, ramps, checkpoints, medals
+const STUNT_SURF = { ice: { k: 1, grip: 0.42 }, dirt: { k: 2, grip: 0.7 } };
+const STUNT_RAMP = { H: 1.6, len: 8, big: true };
+const scirc = (a, b) => { const d = Math.abs(a - b) % T.L; return Math.min(d, T.L - d); };
+function stuntSurfaces() {
+  const o = TRACK.stunt, rnd = mulberry(o.seed * 13 + 5), zg = new Float32Array(T.N).fill(1);
+  T.surf = []; T.zt = new Uint8Array(T.N);
+  for (const type of ['ice', 'dirt']) for (let q = 0; q < (o[type] || 0); q++) {
+    for (let tries = 0; tries < 60; tries++) {
+      const len = 110 + rnd() * 90, from = 140 + rnd() * (T.L - 300 - len);
+      if (T.surf.some(z => from < z.to + 90 && from + len > z.from - 90)) continue;
+      T.surf.push({ type, from, to: from + len }); break;
+    }
+  }
+  for (const z of T.surf) for (let i = 0; i < T.N; i++) if (T.S[i] >= z.from && T.S[i] <= z.to) { zg[i] = STUNT_SURF[z.type].grip; T.zt[i] = STUNT_SURF[z.type].k; }
+  return zg;
+}
+function stuntProps() {
+  const o = TRACK.stunt, rnd = mulberry(o.seed * 31 + 9), N = T.N;
+  const absK = i => { let k = 0; for (let q = -4; q <= 4; q++) k = Math.max(k, Math.abs(T.K[(i + q + N) % N])); return k; };
+  const ahead = new Float32Array(N);       // metres of near-straight road ahead of each sample
+  for (let n = 2 * N - 1; n >= 0; n--) { const i = n % N; ahead[i] = absK(i) < 1 / 100 ? Math.min(2 * T.L, ahead[(i + 1) % N] + segLen(i)) : 0; }
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const free = (s, d) => T.surf.every(z => s < z.from - d || s > z.to + d) && s > 90 && s < T.L - 50;
+  // ramps: the whole flight (worked out at the ideal speed) and a margin must fit on the straight
+  const flight = v => { const vy = clamp(v * 0.065, 3.5, 6); return v * (vy + Math.sqrt(vy * vy + 2 * G * STUNT_RAMP.H)) / G; };
+  T.sRamps = [];
+  for (const i of shuffle([...Array(N).keys()])) {
+    if (T.sRamps.length >= (o.ramps || 0)) break;
+    const s0 = T.S[i];
+    if (!free(s0, 30) || ahead[i] < STUNT_RAMP.len / 2 + flight(T.vProf[i]) + 25 || ahead[(i - 20 + N) % N] < 40) continue;
+    if (T.sRamps.some(r => scirc(r.s, s0) < 220)) continue;
+    const p = sToPoint(s0, 0);
+    T.sRamps.push({ s: s0, x: p.x, y: p.y, h: p.h, alt: p.alt, i: p.i, w: HALF_W - 0.2, ...STUNT_RAMP });
+  }
+  // boost pads: a run-up to most ramps, the rest where the corner exits open up
+  const pad = s0 => { const p = sToPoint(s0, 0); T.sPads.push({ s: s0, x: p.x, y: p.y, h: p.h, alt: p.alt, w: 2 * HALF_W - 1, len: 8, t: 1.3 }); };
+  T.sPads = [];
+  for (const r of T.sRamps) if (rnd() < 0.7) { const s0 = (r.s - 45 + T.L) % T.L; if (free(s0, 5)) pad(s0); }
+  for (const i of shuffle([...Array(N).keys()])) {
+    if (T.sPads.length >= (o.pads || 0)) break;
+    const s0 = T.S[i];
+    if (!free(s0, 10) || ahead[i] < 60 || absK((i - 12 + N) % N) < 1 / 70) continue;
+    if (T.sPads.some(q => scirc(q.s, s0) < 110) || T.sRamps.some(r => scirc(r.s, s0) < 30)) continue;
+    pad(s0);
+  }
+  T.cps = [T.L / 3, 2 * T.L / 3];           // checkpoints at the sector lines
+}
+function cpSplit(c, k) {                  // checkpoint split against your best lap (blue = ahead, red = behind)
+  const t = simTime - c.lapStart, ref = c.bestTrace, f = (k + 1) * T.L / 3 / 10, a = Math.floor(f);
+  const tb = ref && ref[a] != null && ref[a + 1] != null ? ref[a] + (ref[a + 1] - ref[a]) * (f - a) : null;
+  say(c, `CHECKPOINT ${k + 1}/2   ` + (tb != null ? fmtGap(t - tb) : fmt(t)), tb == null ? '#ffffff' : t <= tb ? '#4fc8ff' : '#ff6b6b', 1.8);
+  AU.beep(1180, 0.07, 0.07);
+}
+const MEDALS = [{ ic: '🏁', n: 'AUTHOR', f: 1, col: '#41c6ba' }, { ic: '🥇', n: 'GOLD', f: 1.07, col: '#ffd23f' }, { ic: '🥈', n: 'SILVER', f: 1.2, col: '#dfe3e8' }, { ic: '🥉', n: 'BRONZE', f: 1.45, col: '#e0a070' }];
+function medalTimes(id) { const a = TRACKS[id].stunt.author; return MEDALS.map(m => ({ ...m, t: m.f === 1 ? a : Math.ceil(a * m.f * 10) / 10 })); }
+function medalFor(id, t) { return medalTimes(id).findIndex(m => t <= m.t + 1e-9); }       // 0 author … 3 bronze, -1 none
+function stuntMedal(c, lt) {
+  const k = medalFor(TRACK.id, lt), key = 'medal.' + TRACK.id;
+  if (k < 0 || k >= store.get(key, 9)) return;
+  store.set(key, k);
+  const m = MEDALS[k]; say(c, `${m.ic} ${m.n} MEDAL!`, m.col, 3.4); AU.cheer(0.9);
 }
 const RAMP_H = 1.0;
 function chaosWorld(dt) {                 // boxes respawn, projectiles move, hazards hit cars
@@ -1764,7 +1885,7 @@ function placeHot(c) {
     if (prev2) s0 = Math.max(s0, T.S[prev2.b] + 60 * KS);   // but never inside the corner before them
     s0 = Math.max(s0, T.L - 1600 * KS);                     // and not much more than a minute of out-lap
   }
-  if (TRACK.kart) {      // kart track: start ~40% of a lap back, on the straightest bit nearby, so the last corners are at full race speed
+  if (TRACK.kart || TRACK.stunt) {      // kart / stunt track: start ~40% of a lap back, on the straightest bit nearby, so the last corners are at full race speed
     const curv = s => { let k = 0; for (let q = -3; q <= 3; q++) k += Math.abs(T.K[sToPoint(s + q, 0).i]); return k / 7; };
     let best = -0.4 * T.L, bk = Infinity;
     for (let s = -0.45 * T.L; s <= -0.35 * T.L; s += 1) { const k = curv(s); if (k < bk) { bk = k; best = s; } }
@@ -1838,7 +1959,8 @@ function startRace(rematch) {
   parts = []; finishOrder = []; resultsAt = 0;
   taxis = []; taxiT = 3; rec = { frames: [], next: 0 };
   hazards = []; boxes = []; pads = []; ramps = []; weather = 'dry'; weatherLap = 0; wxMsgT = 0;
-  if (cfg.mode === 'chaos' || cfg.mode === 'battle') { if (TRACK.arena) arenaProps(); else { placeBoxes(); placePads(); placeRamps(); } weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
+  if (cfg.mode === 'chaos' || cfg.mode === 'battle') { if (TRACK.arena) arenaProps(); else { placeBoxes(); if (!TRACK.stunt) { placePads(); placeRamps(); } } weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
+  if (TRACK.stunt) { pads = T.sPads; ramps = T.sRamps; }     // (built into the scene, see buildStunt)
   if (TRACK.arena) cars.forEach(c => { c.balloons = 3; c.hits = 0; c.out = false; c.outAt = 0; c.popT = 0; });
   dailyNow = cfg.mode === 'daily' && solo && !NET.race ? dailyToday() : null;
   if (dailyNow && dailyNow.track !== TRACK.id) dailyNow = null;          // (only on the day's track)
@@ -2393,6 +2515,7 @@ function step(dt) {
     c.alt = c.air ? c.airAlt : groundAt(c.x, c.y);
     if (state !== 'race') return;
     if (isChaos()) chaosCar(c, inputs[i], dt);
+    else if (TRACK.stunt) propsCar(c);
 
     if (c.localD > WALL + 6) {
       const p = sToPoint(c.s, 0);
@@ -2417,7 +2540,9 @@ function step(dt) {
     if (c.timing) {
       const within = c.prog - c.lapsDone * T.L;
       while (c.secIdx < 2 && within >= (c.secIdx + 1) * T.L / 3) {
-        sectorDone(c, c.secIdx, simTime - c.sectorStart); c.sectorStart = simTime; c.secIdx++;
+        sectorDone(c, c.secIdx, simTime - c.sectorStart); c.sectorStart = simTime;
+        if (TRACK.stunt && !c.cpu) cpSplit(c, c.secIdx);
+        c.secIdx++;
       }
       const kk = Math.floor(within / 10);   // time at every 10 m, for the live delta
       while (c.traceK <= kk && c.traceK < 4000) { (c.curBrk || (c.curBrk = []))[c.traceK] = c.brakeIn > 0.3 ? 1 : 0; c.curTrace[c.traceK++] = simTime - c.lapStart; }
@@ -2585,6 +2710,7 @@ function lapDone(c) {
     record = { t: lt, name: c.name, d: new Date().toISOString().slice(0, 10) }; store.set(recordKey(), record);
     c.newRecord = true; say(c, (isDaily() ? 'BEST TODAY  ' : 'TRACK RECORD  ') + fmt(lt), PURPLE, 3); AU.cheer(0.8);
   }
+  if (!invalid && !isChaos() && TRACK.stunt && !c.cpu) stuntMedal(c, lt);
   if (!invalid && !isChaos()) uploadLap(c, lt, lapRec);
   if (isHot()) { c.ers = 1; lateLimits(c); return; }          // hot lap: a full battery for every timed lap
   if (c.lapsDone >= cfg.laps || finishOrder.length) {
@@ -3256,7 +3382,7 @@ function buildGfx() {
   for (const k of keepers) scene.add(k);
   carMeshes = []; ghostMesh = null; chaosObjs = []; hazMesh = new Map(); skidHead = 0; skidCount = 0; skidGeo.setDrawRange(0, 0);
   planes = []; planeT = 1; taxiMesh = new Map(); if (!TRACK.airport) airportLights = []; if (!TRACK.jokes) jokeAnims = [];
-  leisure = TRACK.leisure ? buildLeisure() : TRACK.monaco ? buildMonaco() : TRACK.arena ? buildArena() : null;
+  leisure = TRACK.leisure ? buildLeisure() : TRACK.monaco ? buildMonaco() : TRACK.arena ? buildArena() : TRACK.stunt ? buildStunt() : null;
   airship = TRACK.airship && TRACK.schlossberg ? buildAirship() : null;
   demo.s = 0; demo.cam.station = -1; demo.cam.snap = true;
   }
@@ -3607,6 +3733,45 @@ function buildGfx() {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 34, 8), L('#9aa1ab')); pole.position.set(x, 17, z); scene.add(pole);
       const head = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 1), new THREE.MeshBasicMaterial({ color: '#fff7d6' })); head.position.set(x, 34, z); head.lookAt(0, 0, 0); scene.add(head);
     }
+    return anims;
+  }
+
+  // ---- Stunt tracks: ice and dirt patches, full-width boost pads, big ramps and the two checkpoint gates
+  function buildStunt() {
+    const anims = [];
+    if (!padMat) chaosMats();
+    const surfTex = {
+      ice: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#d4f1fb'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 2; for (let k = 0; k < 26; k++) { const x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - .5) * 50, y + (Math.random() - .5) * 50); g.stroke(); } }, true),
+      dirt: canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#8f6a42'; g.fillRect(0, 0, w, h); for (let k = 0; k < 900; k++) { const v = Math.random(); g.fillStyle = v < 0.5 ? '#7a5733' : v < 0.85 ? '#a57e52' : '#5f4426'; g.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 2 + Math.random() * 3); } }, true),
+    };
+    for (const z of T.surf) {
+      const pos = [], uv = [], idx = [];
+      let k = 0;
+      for (let s = z.from; s <= z.to; s += 1.5, k++) {
+        for (const lat of [-HALF_W + 0.3, HALF_W - 0.3]) { const p = sToPoint(s, lat); pos.push(p.x, p.alt + 0.05, p.y); uv.push(lat / 6, s / 6); }
+        if (k) { const a = (k - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: surfTex[z.type], side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })));
+    }
+    for (const q of T.sPads) scene.add(groundStrip(q.x, q.y, q.h, q.len, q.w, padMat, 0.08));
+    for (const r of T.sRamps) scene.add(rampMesh(r));
+    // checkpoint gates in the Aeroficial colours, with a glowing strip that pulses
+    const frame = new THREE.MeshLambertMaterial({ color: '#11406b' }), glow = new THREE.MeshBasicMaterial({ color: '#41c6ba' });
+    const label = canvasTex(512, 64, (g, w, h) => { g.fillStyle = '#11406b'; g.fillRect(0, 0, w, h); g.fillStyle = '#41c6ba'; g.font = '800 40px Segoe UI, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('CHECKPOINT', w / 2, h / 2 + 2); });
+    const lmat = new THREE.MeshBasicMaterial({ map: label, side: THREE.DoubleSide });
+    for (const s of T.cps) {
+      const p = sToPoint(s, 0), grp = new THREE.Group(), w = HALF_W + 1.2;
+      grp.position.set(p.x, p.alt, p.y); grp.rotation.y = -p.h;
+      for (const z of [-w, w]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.9, 8.6, 0.9), frame); m.position.set(0, 4.3, z); grp.add(m); }
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 2 * w + 0.9), frame); beam.position.set(0, 8.4, 0); grp.add(beam);
+      for (const x of [-0.52, 0.52]) { const t = new THREE.Mesh(new THREE.PlaneGeometry(2 * w - 2, 1.3), lmat); t.position.set(x, 8.4, 0); t.rotation.y = Math.PI / 2; grp.add(t); }
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.25, 2 * w), glow); strip.position.set(0, 7.45, 0); grp.add(strip);
+      const line = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 2 * HALF_W), glow); line.rotation.x = -Math.PI / 2; line.position.set(0, 0.1, 0); grp.add(line);
+      scene.add(grp);
+    }
+    let t = 0; anims.push(dt => { t += dt; glow.color.setHSL(0.48, 0.55, 0.45 + 0.15 * Math.sin(t * 4)); });
     return anims;
   }
 
@@ -4127,13 +4292,16 @@ function buildGfx() {
     brickMat = new THREE.MeshLambertMaterial({ map: bricks });
   }
   function rampMesh(r) {
-    const g = new THREE.Group(), len = Math.hypot(6, RAMP_H);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.22, 6), rampMats.top);
-    top.position.set(0, RAMP_H / 2 - 0.06, 0); top.rotation.z = Math.atan2(RAMP_H, 6); g.add(top);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.3, RAMP_H, 6), rampMats.dark); back.position.set(2.85, RAMP_H / 2 - 0.05, 0); g.add(back);
-    for (const z of [-2.9, 2.9]) {
-      const side = new THREE.Mesh(new THREE.BoxGeometry(5.6, RAMP_H * 0.5, 0.15), rampMats.dark);
-      side.position.set(0.3, RAMP_H * 0.25, z); side.rotation.z = Math.atan2(RAMP_H, 6) * 0.9; g.add(side);
+    const H = r.H || RAMP_H, L = r.len || 6, W = 2 * (r.w || 3), ang = Math.atan2(H, L), g = new THREE.Group(), len = Math.hypot(L, H);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(len, 0.22, W), rampMats.top);
+    top.position.set(0, H / 2 - 0.06, 0); top.rotation.z = ang; g.add(top);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.3, H, W), rampMats.dark); back.position.set(L / 2 - 0.15, H / 2 - 0.05, 0); g.add(back);
+    if (r.big) {                // solid wedge sides
+      const sh = new THREE.Shape(); sh.moveTo(-L / 2, 0); sh.lineTo(L / 2, 0); sh.lineTo(L / 2, H); sh.closePath();
+      for (const z of [-W / 2, W / 2 - 0.15]) { const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.15, bevelEnabled: false }), rampMats.dark); m.position.z = z; g.add(m); }
+    } else for (const z of [-W / 2 + 0.1, W / 2 - 0.1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(L - 0.4, H * 0.5, 0.15), rampMats.dark);
+      side.position.set(0.3, H * 0.25, z); side.rotation.z = ang * 0.9; g.add(side);
     }
     g.rotation.order = 'YZX'; g.rotation.y = -r.h; g.rotation.z = Math.atan(T.GR[r.i]);
     g.position.set(r.x, groundAt(r.x, r.y), r.y);
@@ -4156,8 +4324,10 @@ function buildGfx() {
     }
     for (const b of boxes) { const m = new THREE.Mesh(boxGeo, boxMat); m.scale.setScalar(1.7 * KS); b.mesh = m; scene.add(m); chaosObjs.push(m); }
     if (!padMat) chaosMats();
-    for (const q of pads) { const m = groundStrip(q.x, q.y, q.h, 8 * KS, 5 * KS, padMat, 0.07); scene.add(m); chaosObjs.push(m); }
-    for (const r of ramps) { const m = rampMesh(r); scene.add(m); chaosObjs.push(m); }
+    if (!TRACK.stunt) {         // (a stunt track's own pads and ramps are part of the scene)
+      for (const q of pads) { const m = groundStrip(q.x, q.y, q.h, 8 * KS, 5 * KS, padMat, 0.07); scene.add(m); chaosObjs.push(m); }
+      for (const r of ramps) { const m = rampMesh(r); scene.add(m); chaosObjs.push(m); }
+    }
   }
   function hazardMesh(h) {
     if (h.type === 'oil') {
@@ -4822,6 +4992,7 @@ function recordKey() { return recKey(TRACK.id, cfg.handling); }
 const SEED_RECORDS = {
   algarve: { f1: 82.8333 }, spa: { f1: 107.9583 }, monza: { f1: 82.2583 }, rbr: { f1: 65.5833 }, silverstone: { f1: 93.775 },
   chaves: { f1: 33.575 }, graz: { f1: 23.7333 }, lowg: { f1: 51.0917 }, monaco: { f1: 75.4833 },
+  st1: { f1: 27.042 }, st2: { f1: 31.15 }, st3: { f1: 26.958 }, st4: { f1: 23.533 }, st5: { f1: 29.892 },   // = the author medals
 };
 // ---------------------------------------------------------------- online records (Supabase)
 // The anon key is a public key by design: the database only allows reading laps and adding new
@@ -4963,7 +5134,8 @@ function refreshMenu() {
   document.getElementById('trackTitle').textContent = TRACK.title;
   document.getElementById('trackSub').innerHTML = `${TRACK.full} · ${TRACK.place} · ${TRACK.km} · ${TRACK.turns} turns`;
   document.getElementById('drsTip').textContent = TRACK.drsText;
-  document.getElementById('recLine').innerHTML = (dailyMenu ? 'Best today: ' : 'Track record: ') + (record ? `<b>${fmt(record.t)}</b> ${esc(record.name)}` : '–');
+  document.getElementById('recLine').innerHTML = (dailyMenu ? 'Best today: ' : 'Track record: ') + (record ? `<b>${fmt(record.t)}</b> ${esc(record.name)}` : '–')
+    + (TRACK.stunt && !dailyMenu ? '<br>Medals: ' + medalTimes(TRACK.id).map(m => `${m.ic} <b>${fmt(m.t)}</b>`).join(' · ') + ((k => k < 9 ? ` · yours: ${MEDALS[k].ic}` : '')(store.get('medal.' + TRACK.id, 9))) : '');
   document.getElementById('noThree').style.display = window.THREE ? 'none' : 'block';
   for (let p = 0; p < 2; p++) {
     const box = document.getElementById('sw' + p);
@@ -5005,8 +5177,9 @@ function refreshMenu() {
       refreshMenu();
     }, 30);
   };
-  seg('trackSeg', TRACK_ORDER.filter(id => !TRACKS[id].kart).map(id => [id, TRACK_SHORT[id]]).concat(hotMenu ? [] : [['cup', '🏆 Cup']]), cupOn() ? 'cup' : TRACK.id, pickTrack);
+  seg('trackSeg', TRACK_ORDER.filter(id => !TRACKS[id].kart && !TRACKS[id].stunt).map(id => [id, TRACK_SHORT[id]]).concat(hotMenu ? [] : [['cup', '🏆 Cup']]), cupOn() ? 'cup' : TRACK.id, pickTrack);
   seg('kartSeg', TRACK_ORDER.filter(id => TRACKS[id].kart).map(id => [id, TRACK_SHORT[id]]), cupOn() ? null : TRACK.id, pickTrack);
+  seg('stuntSeg', TRACK_ORDER.filter(id => TRACKS[id].stunt).map(id => { const m = store.get('medal.' + id, 9); return [id, (MEDALS[m] ? MEDALS[m].ic + ' ' : '') + TRACK_SHORT[id]]; }), cupOn() ? null : TRACK.id, pickTrack);
   if (cupOn()) {
     document.getElementById('trackTitle').textContent = '5-RACE CUP';
     document.getElementById('trackSub').textContent = CUP_TRACKS.map(id => TRACK_SHORT[id]).join(' → ') + ' · points ' + CUP_PTS.join('-');
@@ -5023,7 +5196,7 @@ function refreshMenu() {
     refreshMenu.loading = true;
     setTimeout(() => { loadTrackData(store.get('track', 'spa')); if (GFX) GFX.buildScene(); cars = []; refreshMenu.loading = false; refreshMenu(); }, 30);
   }
-  for (const id of ['trackSeg', 'kartSeg']) document.getElementById(id).parentElement.style.display = daily || battle ? 'none' : '';
+  for (const id of ['trackSeg', 'kartSeg', 'stuntSeg']) document.getElementById(id).parentElement.style.display = daily || battle ? 'none' : '';
   document.getElementById('modeOpt').style.display = '';
   document.getElementById('lapsOpt').style.display = hot || battle ? 'none' : '';
   document.getElementById('ghostOpt').style.display = hot ? '' : 'none';
@@ -5060,12 +5233,16 @@ function drawMenuMap() {
   g.save(); g.translate(ox, oy); g.scale(s, s); g.lineJoin = 'round';
   g.strokeStyle = '#e10600'; g.lineWidth = 9 / s; g.stroke(T.full);
   g.strokeStyle = '#fff'; g.lineWidth = 3.5 / s; g.stroke(T.full);
+  if (TRACK.stunt) {
+    for (const z of T.surf) { g.strokeStyle = z.type === 'ice' ? '#8fdcff' : '#b8864f'; g.lineWidth = 6 / s; g.beginPath(); for (let q = z.from; q <= z.to; q += 4) { const p = sToPoint(q, 0); q === z.from ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y); } g.stroke(); }
+    for (const [list, col] of [[T.sPads, '#41c6ba'], [T.sRamps, '#ffd23f']]) for (const o of list) { g.fillStyle = col; g.beginPath(); g.arc(o.x, o.y, 4.5 / s, 0, 7); g.fill(); }
+  }
   g.restore();
   g.font = '700 10px "Segoe UI",system-ui,sans-serif'; g.fillStyle = '#c9ced6'; g.textAlign = 'center'; g.textBaseline = 'middle';
   for (const l of T.labels) {
     if (!l.ref) continue;
     const i = l.i;
-    const lo = TRACK.kart ? 11 : 70;
+    const lo = TRACK.kart ? 11 : TRACK.stunt ? 28 : 70;
     g.fillText(l.ref, ox + (T.X[i] + T.NX[i] * l.side * lo) * s, oy + (T.Y[i] + T.NY[i] * l.side * lo) * s);
   }
   const p = sToPoint(0, 0);
@@ -5267,7 +5444,7 @@ function dailyFor(date, avoid) {
   const day = date.toISOString().slice(0, 10), key = 'd' + day.replace(/-/g, '');
   let h = 2166136261; for (const ch of key + 'brickprix') h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   const r = mulberry(h); r(); r();
-  const pool = TRACK_ORDER.filter(id => id !== 'monaco' || day >= '2026-11-24');   // (Monaco joined the pool the day after it was added)
+  const pool = TRACK_ORDER.filter(id => !TRACKS[id].stunt && (id !== 'monaco' || day >= '2026-11-24'));   // (Monaco joined the pool the day after it was added)
   let ti = Math.floor(r() * pool.length);
   if (pool[ti] === avoid) ti = (ti + 1) % pool.length;                    // not the same track two days running
   const track = pool[ti], conds = DAILY_CONDS.filter(c => !(c.f1 && TRACKS[track].kart));

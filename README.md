@@ -10,6 +10,8 @@ Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão
 
 **Kart tracks** (their own row on the menu): Kartódromo de Chaves · Graz (Styria Karting Premstätten) · Graz Airport (apron circuit)
 
+**Stunt tracks** (their own row too): Brickyard · Icebox · Dust Bowl · Rollercoaster · Boost Alley
+
 The layouts are the real circuits, taken from OpenStreetMap. Elevation and scenery are approximate.
 
 Chaves is a real-size kart track (0.59 km, 12 turns, flat), raced in karts instead of F1 cars: about 90 km/h flat out, no downforce, rear brakes only, and a lap of roughly 30–35 s. Its sections run close side by side, so tyre walls sit between them. It isn't part of the Cup. Past Curva do Zazo there's a croquetas stand where Filipe eats a croqueta, turns green and throws up, over and over.
@@ -23,6 +25,16 @@ Around Graz there's more to look at: skiers and a chairlift on a snowy mountain 
 Karts have no ERS or DRS.
 
 **Monaco** is the street circuit (3.3 km, 19 turns) from OpenStreetMap: barriers right at the edge of the road the whole way round (so there's no track-limits rule; the walls are the limit), the climb from Sainte Dévote up Beau Rivage to the Casino, the Grand Hotel hairpin, and a real tunnel after Portier where the daylight fades out and the lamps take over. The harbour beside the Piscine and La Rascasse is full of yachts, the sea runs along the tunnel, and apartment blocks climb the hill all round. DRS on the pit straight. It isn't part of the Cup.
+
+**Stunt tracks** are short made-up circuits for time attack, Trackmania-style (1.2–1.6 km, laps of 25–35 s in the F1 car). Each one is generated from a fixed seed, so everyone gets the same five: straights and tight corners between walls (no track-limits rule), then the stunt bits on top: full-width **boost pads**, big **jump ramps** (about a second of airtime, no steering in the air), patches of **ice** (very little grip) or **dirt** (less grip), hills (Rollercoaster climbs 20 m), and two **checkpoint** gates that show your split against your best lap (blue ahead, red behind). Each track has **medals**: 🏁 Author (Claude's lap), 🥇 Gold (+7%), 🥈 Silver (+20%) and 🥉 Bronze (+45%); the medals and times are on the menu, and the best medal you've won shows on the track button. They work in every mode (hot lap is the time attack; races, Chaos and online too), but not in the Cup or the Daily. Their online leaderboards need the stunt-track lines of `supabase.sql` run once.
+
+| Stunt track | Length | Stunts | 🏁 Author | 🥇 Gold | 🥈 Silver | 🥉 Bronze |
+|---|---|---|---|---|---|---|
+| Brickyard | 1.19 km | 2 ramps, 3 pads | 0:27.042 | 0:29.0 | 0:32.5 | 0:39.3 |
+| Icebox (snow) | 1.20 km | 1 ramp, 3 pads, 2 ice patches | 0:31.150 | 0:33.4 | 0:37.4 | 0:45.2 |
+| Dust Bowl (desert) | 1.16 km | 2 ramps, 3 pads, 2 dirt patches | 0:26.958 | 0:28.9 | 0:32.4 | 0:39.1 |
+| Rollercoaster | 1.19 km | 2 ramps, 2 pads, 1 dirt patch, 20 m of hills | 0:23.533 | 0:25.2 | 0:28.3 | 0:34.2 |
+| Boost Alley | 1.60 km | 3 ramps, 6 pads, 1 ice patch | 0:29.892 | 0:32.0 | 0:35.9 | 0:43.4 |
 
 ## Modes
 
@@ -82,6 +94,7 @@ The **🏆 Records** screen on the menu has a tab for each circuit. Each tab sho
 | Graz (karts) | 0:23.733 |
 | Graz Airport (karts) | 0:51.092 |
 | Monaco | 1:15.483 |
+| Stunt tracks | the 🏁 Author times above |
 
 **The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded.
 

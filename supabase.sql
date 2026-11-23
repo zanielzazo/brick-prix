@@ -113,3 +113,26 @@ alter table public.lap_records add constraint plausible_lap check (
     when 'lowg'        then 35000
     when 'monaco'      then 55000
   end);
+
+-- Added later: the five stunt tracks (track ids 'st1' to 'st5').
+alter table public.lap_records drop constraint if exists lap_records_track_check;
+alter table public.lap_records add constraint lap_records_track_check
+  check (track in ('algarve', 'spa', 'monza', 'rbr', 'silverstone', 'chaves', 'graz', 'lowg', 'monaco', 'st1', 'st2', 'st3', 'st4', 'st5'));
+alter table public.lap_records drop constraint if exists plausible_lap;
+alter table public.lap_records add constraint plausible_lap check (
+  lap_ms <= 400000 and lap_ms >= case track
+    when 'algarve'     then 70000
+    when 'spa'         then 91000
+    when 'monza'       then 70000
+    when 'rbr'         then 55000
+    when 'silverstone' then 79000
+    when 'chaves'      then 22000
+    when 'graz'        then 15000
+    when 'lowg'        then 35000
+    when 'monaco'      then 55000
+    when 'st1'         then 20000
+    when 'st2'         then 23000
+    when 'st3'         then 20000
+    when 'st4'         then 17000
+    when 'st5'         then 22000
+  end);
