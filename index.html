@@ -1535,7 +1535,9 @@ function startRace(rematch) {
     document.documentElement.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {});
   if (rematch) gridFlip = !gridFlip;
   const solo = cfg.players === 1;
+  const prevCam = state === 'menu' ? [] : cars.filter(c => !c.cpu).map(c => c.camMode);   // a restart keeps each driver's camera
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
+  hs.forEach((h, k) => { if (prevCam[k]) h.camMode = prevCam[k]; });
   const nCpu = solo && cfg.mode === 'hot' ? 0 : clamp(cfg.cpu | 0, 0, 5);
   let names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5);
   const cpus = [];
