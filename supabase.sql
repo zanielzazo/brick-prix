@@ -95,3 +95,21 @@ alter table public.lap_records add constraint plausible_lap check (
 alter table public.lap_records drop constraint if exists lap_records_handling_check;
 alter table public.lap_records add constraint lap_records_handling_check
   check (handling in ('arcade', 'f1') or handling ~ '^d[0-9]{8}$');
+
+-- Added later: Monaco (track id 'monaco').
+alter table public.lap_records drop constraint if exists lap_records_track_check;
+alter table public.lap_records add constraint lap_records_track_check
+  check (track in ('algarve', 'spa', 'monza', 'rbr', 'silverstone', 'chaves', 'graz', 'lowg', 'monaco'));
+alter table public.lap_records drop constraint if exists plausible_lap;
+alter table public.lap_records add constraint plausible_lap check (
+  lap_ms <= 400000 and lap_ms >= case track
+    when 'algarve'     then 70000
+    when 'spa'         then 91000
+    when 'monza'       then 70000
+    when 'rbr'         then 55000
+    when 'silverstone' then 79000
+    when 'chaves'      then 22000
+    when 'graz'        then 15000
+    when 'lowg'        then 35000
+    when 'monaco'      then 55000
+  end);

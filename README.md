@@ -6,7 +6,7 @@ A browser racing game in the style of Formula 1 for one or two players on one ke
 
 ## Tracks
 
-Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão)
+Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão) · Monaco
 
 **Kart tracks** (their own row on the menu): Kartódromo de Chaves · Graz (Styria Karting Premstätten) · Graz Airport (apron circuit)
 
@@ -21,6 +21,8 @@ Around Graz there's more to look at: skiers and a chairlift on a snowy mountain 
 **Graz Airport** is a made-up 1.16 km kart circuit on the real apron of Graz Airport (layout of the airport from OpenStreetMap): a start straight past the terminal, then a twisty section through the remote stands with parked aircraft. Aircraft taxi across the circuit twice a lap: wait at the red light (running it costs +3 s, or the lap in hot lap), and don't hit the landing gear. Planes land and take off on runway 16C/34C next to you.
 
 Karts have no ERS or DRS.
+
+**Monaco** is the street circuit (3.3 km, 19 turns) from OpenStreetMap: barriers right at the edge of the road the whole way round (so there's no track-limits rule; the walls are the limit), the climb from Sainte Dévote up Beau Rivage to the Casino, the Grand Hotel hairpin, and a real tunnel after Portier where the daylight fades out and the lamps take over. The harbour beside the Piscine and La Rascasse is full of yachts, the sea runs along the tunnel, and apartment blocks climb the hill all round. DRS on the pit straight. It isn't part of the Cup.
 
 ## Modes
 
@@ -78,6 +80,7 @@ The **🏆 Records** screen on the menu has a tab for each circuit. Each tab sho
 | Chaves (karts) | 0:33.575 |
 | Graz (karts) | 0:23.733 |
 | Graz Airport (karts) | 0:51.092 |
+| Monaco | 1:15.483 |
 
 **The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded.
 
