@@ -89,3 +89,9 @@ alter table public.lap_records add constraint plausible_lap check (
     when 'graz'        then 15000
     when 'lowg'        then 35000
   end);
+
+-- Added later: the Daily Challenge. Its laps are stored with handling 'dYYYYMMDD' (the day, UTC), so every day
+-- has its own leaderboard next to the normal F1 one.
+alter table public.lap_records drop constraint if exists lap_records_handling_check;
+alter table public.lap_records add constraint lap_records_handling_check
+  check (handling in ('arcade', 'f1') or handling ~ '^d[0-9]{8}$');

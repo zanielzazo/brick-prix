@@ -232,6 +232,7 @@
         <div><b>DRS</b> – from lap 2, <span id="drsTip">cross the detection line</span> less than 1 s behind and the rear wing opens on the next straight. In single player it opens in every DRS zone.</div>
         <div><b>Slipstream</b> – sit right behind your rival for a tow.</div>
         <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run. <kbd>T</kbd> shows the lap telemetry.</div>
+        <div><b>📅 Daily</b> (1 player) – one track and one condition a day (rain, worn tyres, no ERS, no DRS, full tanks, storm or glitter), the same for everyone, as a hot lap with its own leaderboard: the "📅 Today" tab in Records. A new one every day at 00:00 UTC.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
         <div><b>🌐 Online</b> – one of you creates a room and shares the 4-letter code (or the invite link); everyone joins from their own browser and the host picks the track, Race or Hot lap together, and starts it for everyone. Each car is driven on its own computer and the others appear live (a fraction of a second behind). No contact between cars yet; pausing doesn't stop an online race.</div>
@@ -1374,7 +1375,9 @@ function placeCar(c, slot) {
 
 const humans = () => cars.filter(c => !c.cpu && !c.remote);  // the players at this computer, always first in `cars`
 const isSolo = () => humans().length === 1;
-const isHot = () => cfg.mode === 'hot' && cars.filter(c => !c.remote).length === 1;   // online: the others' cars don't count
+const hotMode = () => cfg.mode === 'hot' || cfg.mode === 'daily';                    // Daily = a hot lap with the day's condition
+const isHot = () => hotMode() && cars.filter(c => !c.remote).length === 1;   // online: the others' cars don't count
+const isDaily = () => cfg.mode === 'daily' && isHot() && !!dailyNow;
 const isChaos = () => cfg.mode === 'chaos' && cars.length > 0 && state !== 'menu';
 
 // ---------------------------------------------------------------- chaos mode
@@ -1389,7 +1392,7 @@ const ITEM_LIST = ['turbo', 'oil', 'shower', 'tyre', 'phantom', 'sc', 'wall', 't
 const ITEM_SHORT = { turbo: 'TURBO', triple: 'TURBO', oil: 'OIL', tyre: 'TYRE', sc: 'SAFETY CAR', shower: 'SHOWER', phantom: 'PHANTOM', wall: 'WALL', pit: 'PIT STOP' };
 const WEATHER = { dry: ['SKIES CLEARING', '#ffd23f', ''], rain: ['RAIN – LESS GRIP', '#7fc4ff', '🌧 RAIN'], glitter: ['GLITTER STORM!', '#ff7bd5', '✨ GLITTER'] };
 // grip multiplier from a shower cloud and the weather (always 1 outside Chaos)
-function gripMul(c) { return (c.showerT > 0 ? 0.62 : 1) * (weather === 'rain' ? 0.82 : 1); }
+function gripMul(c) { return (c.showerT > 0 ? 0.62 : 1) * (weather === 'rain' ? 0.82 : 1) * (dailyNow && isDaily() && dailyNow.cond.grip || 1); }
 function rollWeather(first) {
   const table = first ? [['dry', 6], ['rain', 2.5], ['glitter', 1.5]] : [['dry', 4], ['rain', 3.5], ['glitter', 2.5]];
   let r = Math.random() * table.reduce((a, t) => a + t[1], 0);
@@ -1713,7 +1716,7 @@ function startRace(rematch) {
   const prevCam = state === 'menu' ? [] : humans().map(c => c.camMode);   // a restart keeps each driver's camera
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
   hs.forEach((h, k) => { if (prevCam[k]) h.camMode = prevCam[k]; });
-  const nCpu = NET.race || (solo && cfg.mode === 'hot') ? 0 : clamp(cfg.cpu | 0, 0, 5);
+  const nCpu = NET.race || (solo && hotMode()) ? 0 : clamp(cfg.cpu | 0, 0, 5);
   let names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5);
   const cpus = [];
   if (TRACK.jokes) {            // the local legends race at Chaves – unless one of them is at the wheel
@@ -1727,10 +1730,10 @@ function startRace(rematch) {
     c.remote = true; c.peer = P; P.car = c; c.left = !!P.left; c.name = P.meta.name || '?'; c.col = cleanLivery(P.meta.liv || COLORS[P.meta.col], COLORS[P.meta.col] || COLORS[0]); c.camMode = 'rear';
     cars.push(c);
   }
-  if (NET.race && cfg.mode !== 'hot') {                   // the host's grid order
+  if (NET.race && !hotMode()) {                           // the host's grid order
     const slot = id => Math.max(0, NET.race.order.findIndex(o => o.id === id));
     cars.forEach(c => placeCar(c, slot(c.remote ? c.peer.id : NET.me)));
-  } else if (solo && cfg.mode === 'hot') cars.forEach(c => placeHot(c));
+  } else if (solo && hotMode()) cars.forEach(c => placeHot(c));
   else {
     const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
     // Chaos: humans start at the back (more boxes, better items); Race: random grid
@@ -1741,6 +1744,11 @@ function startRace(rematch) {
   taxis = []; taxiT = 3; rec = { frames: [], next: 0 };
   hazards = []; boxes = []; pads = []; ramps = []; weather = 'dry'; weatherLap = 0; wxMsgT = 0;
   if (cfg.mode === 'chaos') { placeBoxes(); placePads(); placeRamps(); weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
+  dailyNow = cfg.mode === 'daily' && solo && !NET.race ? dailyToday() : null;
+  if (dailyNow && dailyNow.track !== TRACK.id) dailyNow = null;          // (only on the day's track)
+  if (dailyNow) weather = dailyNow.cond.rain ? 'rain' : dailyNow.cond.glitter ? 'glitter' : 'dry';
+  cfg.handling = dailyNow ? dailyNow.key : 'f1';                          // the day's own leaderboard, ghosts and bests
+  record = getRecord(TRACK.id, cfg.handling);
   session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
   simTime = 0; raceStart = 0;
   AU.setPans(solo);
@@ -1748,6 +1756,7 @@ function startRace(rematch) {
     cd = { t: 0, lights: 0, out: 0 };
     state = 'race'; paused = false;
     say(cars[0], cfg.ghost === 'off' ? 'OUT LAP – PUSH!' : 'OUT LAP – GHOST STARTS AT THE LINE', GREEN, 2.2);
+    if (dailyNow) say(cars[0], `DAILY CHALLENGE · ${dailyNow.cond.icon} ${dailyNow.cond.name.toUpperCase()}`, '#ffd23f', 3.5);
     ghost = store.get(ghostKey(), null);
     if (ghost) ghost.name = 'Your best';
     if (ghost && ghost.tr) cars[0].bestTrace = ghost.tr;    // live delta against your all-time best
@@ -1765,8 +1774,13 @@ function startRace(rematch) {
 // Race all five tracks in a row (Race or Chaos rules) for points; the same CPU drivers all cup long.
 const CUP_TRACKS = ['spa', 'rbr', 'monza', 'silverstone', 'algarve'], CUP_PTS = [10, 8, 6, 5, 4, 3, 2];
 let cup = null;          // { race, names, table: [{ id, name, col, cpu, pts, last, places }], done }
-const cupOn = () => cfg.cup && !(cfg.players === 1 && cfg.mode === 'hot');
+const cupOn = () => cfg.cup && !(cfg.players === 1 && hotMode());
 function startFromMenu() {
+  if (cfg.players === 1 && cfg.mode === 'daily') {                       // make sure we're on today's track
+    const D = dailyToday(); cup = null;
+    if (TRACK.id !== D.track) { if (!namesReady()) return; document.getElementById('startBtn').textContent = 'Building track…'; setTimeout(() => { loadTrackData(D.track); if (GFX) GFX.buildScene(); startRace(false); }, 30); return; }
+    startRace(false); return;
+  }
   if (!cupOn()) { cup = null; startRace(false); return; }
   if (!namesReady()) return;
   newCup();
@@ -2107,12 +2121,13 @@ function physics(c, inp, dt, locked) {
   if (scSlow) thr = 0;
   c.throttle = inp.throttle; c.brakeIn = brk;
   const trac = G * (H.tracA + 0.0004 * vf * vf) * surf.grip * gm;
-  c.boostOn = !locked && !isChaos() && !TRACK.kart && inp.boost && thr > 0.2 && c.ers > 0.005 && vf > 3 && VEH.power / vf < trac;
+  const dc = dailyNow && isDaily() ? dailyNow.cond : null, pwK = dc && dc.power || 1;
+  c.boostOn = !locked && !isChaos() && !TRACK.kart && !(dc && dc.noErs) && inp.boost && thr > 0.2 && c.ers > 0.005 && vf > 3 && VEH.power / vf < trac;
   if (c.boostOn) c.ers = Math.max(0, c.ers - ERS_USE * dt);
   let ax = 0;
   if (thr > 0) {
     const turbo = c.turboT > 0;
-    if (vf >= -0.5) ax += thr * Math.min(trac * (turbo ? 1.35 : 1), VEH.power * (c.boostOn ? BOOST : 1) * (turbo ? 1.5 : 1) / Math.max(vf, 1));
+    if (vf >= -0.5) ax += thr * Math.min(trac * (turbo ? 1.35 : 1), VEH.power * pwK * (c.boostOn ? BOOST : 1) * (turbo ? 1.5 : 1) / Math.max(vf, 1));
     else ax += thr * 14;
   }
   if (brk > 0) {
@@ -2313,6 +2328,7 @@ function step(dt) {
       if (cars.length === 1 || isHot()) c.drsOK = true;
       else if (!other) c.drsOK = false;
       else { const g = gapTo(c, other); c.drsOK = c.lapsDone >= 1 && g != null && g > 0 && g < 1.0; }
+      if (isDaily() && dailyNow.cond.noDrs) c.drsOK = false;
       if (c.drsOK) say(c, 'DRS ENABLED', GREEN, 1.5);
     }
     const z = c.drsZone;
@@ -2457,7 +2473,7 @@ function lapDone(c) {
   } else if (pb) say(c, 'PERSONAL BEST  ' + fmt(lt), GREEN, 2.2);
   if (!invalid && !isChaos() && !c.cpu && (!record || lt < record.t)) {
     record = { t: lt, name: c.name, d: new Date().toISOString().slice(0, 10) }; store.set(recordKey(), record);
-    c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3); AU.cheer(0.8);
+    c.newRecord = true; say(c, (isDaily() ? 'BEST TODAY  ' : 'TRACK RECORD  ') + fmt(lt), PURPLE, 3); AU.cheer(0.8);
   }
   if (!invalid && !isChaos()) uploadLap(c, lt, lapRec);
   if (isHot()) { c.ers = 1; lateLimits(c); return; }          // hot lap: a full battery for every timed lap
@@ -3873,7 +3889,7 @@ function buildGfx() {
   let wxShown = 'dry', wxAmt = 0;
   const cA = new THREE.Color(), cB = new THREE.Color();
   function syncWeather(dt) {
-    const want = state !== 'menu' && isChaos() ? weather : 'dry';
+    const want = state !== 'menu' && (isChaos() || isDaily()) ? weather : 'dry';
     if (want !== wxShown) { wxAmt -= dt / 1.2; if (wxAmt <= 0) { wxAmt = 0; wxShown = want; } }
     else if (wxShown !== 'dry') wxAmt = Math.min(1, wxAmt + dt / 1.5);
     const th = TRACK.theme, sk = WX_SKY[wxShown], a = sk ? wxAmt : 0;
@@ -4151,7 +4167,7 @@ function drawHud(vp, c) {
   txt(isHot() ? 'TT' : 'P' + pos, 47, 63, F(800, 34), c.col.c === '#d4dae0' ? '#111' : '#fff', 'center');
   txt(c.name.toUpperCase(), 92, 38, F(700, 15));
   const lapNo = Math.min(cfg.laps, c.lapsDone + 1);
-  txt(isHot() ? (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
+  txt(isHot() ? (isDaily() ? dailyNow.cond.icon + ' DAILY · ' : '') + (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
   if (c.penalty) txt('+' + c.penalty + 's PEN', 256, 60, F(800, 12), '#ff5050', 'right');
   else if (c.warnings) txt('⚠ ' + c.warnings + '/3', 256, 60, F(700, 12), YELLOW, 'right');
   if (state === 'race' && !c.finished && order.length > 1) {
@@ -4459,7 +4475,8 @@ function showResults() {
 function esc(s) { return String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
 
 // ---------------------------------------------------------------- menu
-function recordKey() { return TRACK.recordKey + (cfg.handling === 'f1' ? '.f1' : ''); }
+const recKey = (id, h) => TRACKS[id].recordKey + (h === 'f1' ? '.f1' : h === 'arcade' ? '' : '.' + h);
+function recordKey() { return recKey(TRACK.id, cfg.handling); }
 // Standing records: Claude's hot laps (valid laps, replayable in this physics). They show in every
 // browser until someone sets a faster lap there.
 const SEED_RECORDS = {
@@ -4477,7 +4494,7 @@ const apiHeaders = () => ONLINE.key.startsWith('eyJ') ? { apikey: ONLINE.key, Au
 async function fetchOnline() {
   if (!onlineOn()) return;
   try {
-    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=track,handling,name,lap_ms,created_at&order=lap_ms.asc&limit=5000`, { headers: apiHeaders() });
+    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=track,handling,name,lap_ms,created_at&handling=in.(f1,${dailyToday().key})&order=lap_ms.asc&limit=5000`, { headers: apiHeaders() });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     online.rows = await r.json(); online.ok = true; online.err = '';
   } catch (e) { online.ok = false; online.err = String(e.message || e); }
@@ -4588,7 +4605,7 @@ function boardFor(id, handling) {                // online + Claude's standing l
   const t = SEED_RECORDS[id] && SEED_RECORDS[id][handling];
   const all = onlineBoard(id, handling);
   if (t) all.push({ t, name: 'Claude', d: '2026-11-22' });
-  const mine = store.get(TRACKS[id].recordKey + (handling === 'f1' ? '.f1' : ''), null);
+  const mine = store.get(recKey(id, handling), null);
   if (mine) all.push(mine);
   all.sort((a, b) => a.t - b.t);
   const seen = new Set();
@@ -4596,11 +4613,17 @@ function boardFor(id, handling) {                // online + Claude's standing l
 }
 function getRecord(id, handling) { return boardFor(id, handling)[0] || null; }
 function refreshMenu() {
+  const dailyMenu = cfg.players === 1 && cfg.mode === 'daily', D = dailyToday();
+  cfg.handling = dailyMenu ? D.key : 'f1';
+  if (dailyMenu && TRACK.id !== D.track && !refreshMenu.loading) {      // Daily: go to today's track
+    refreshMenu.loading = true; document.getElementById('startBtn').textContent = 'Building track…';
+    setTimeout(() => { loadTrackData(D.track); if (GFX) GFX.buildScene(); cars = []; refreshMenu.loading = false; refreshMenu(); }, 30);
+  }
   record = getRecord(TRACK.id, cfg.handling);
   document.getElementById('trackTitle').textContent = TRACK.title;
   document.getElementById('trackSub').innerHTML = `${TRACK.full} · ${TRACK.place} · ${TRACK.km} · ${TRACK.turns} turns`;
   document.getElementById('drsTip').textContent = TRACK.drsText;
-  document.getElementById('recLine').innerHTML = 'Track record: ' + (record ? `<b>${fmt(record.t)}</b> ${esc(record.name)}` : '–');
+  document.getElementById('recLine').innerHTML = (dailyMenu ? 'Best today: ' : 'Track record: ') + (record ? `<b>${fmt(record.t)}</b> ${esc(record.name)}` : '–');
   document.getElementById('noThree').style.display = window.THREE ? 'none' : 'block';
   for (let p = 0; p < 2; p++) {
     const box = document.getElementById('sw' + p);
@@ -4629,7 +4652,7 @@ function refreshMenu() {
       b.onclick = () => { set(v); refreshMenu(); }; el.appendChild(b);
     });
   };
-  const hotMenu = cfg.players === 1 && cfg.mode === 'hot';
+  const hotMenu = cfg.players === 1 && hotMode();
   const pickTrack = v => {
     cfg.cup = v === 'cup'; store.set('cup', cfg.cup);
     if (v === 'cup' || v === TRACK.id) return;
@@ -4650,13 +4673,19 @@ function refreshMenu() {
   }
   seg('playersSeg', [[1, '1'], [2, '2']], cfg.players, v => { cfg.players = v; store.set('players', v); });
   const soloMenu = cfg.players === 1;
-  seg('modeSeg', soloMenu ? [['race', 'Race'], ['hot', 'Hot lap'], ['chaos', 'Chaos']] : [['race', 'Race'], ['chaos', 'Chaos']],
-    !soloMenu && cfg.mode === 'hot' ? 'race' : cfg.mode, v => { cfg.mode = v; store.set('mode', v); });
-  const solo = soloMenu, hot = solo && cfg.mode === 'hot', chaos = cfg.mode === 'chaos';
+  seg('modeSeg', soloMenu ? [['race', 'Race'], ['hot', 'Hot lap'], ['daily', '📅 Daily'], ['chaos', 'Chaos']] : [['race', 'Race'], ['chaos', 'Chaos']],
+    !soloMenu && hotMode() ? 'race' : cfg.mode, v => { cfg.mode = v; store.set('mode', v); });
+  const solo = soloMenu, hot = solo && hotMode(), chaos = cfg.mode === 'chaos', daily = solo && cfg.mode === 'daily';
+  for (const id of ['trackSeg', 'kartSeg']) document.getElementById(id).parentElement.style.display = daily ? 'none' : '';
   document.getElementById('modeOpt').style.display = '';
   document.getElementById('lapsOpt').style.display = hot ? 'none' : '';
   document.getElementById('ghostOpt').style.display = hot ? '' : 'none';
-  document.getElementById('ghostInfo').innerHTML = chaos
+  const top = boardFor(D.track, D.key).slice(0, 3);
+  document.getElementById('ghostInfo').innerHTML = daily
+    ? `📅 <b>Daily challenge</b> – <b style="color:#fff">${esc(TRACKS[D.track].title)}</b> with ${D.cond.icon} <b style="color:#ffd23f">${D.cond.name}</b>: ${D.cond.desc}. ` +
+      `The same for everyone today, with its own leaderboard (best valid lap counts). New challenge in ${dailyLeft()}.<br>` +
+      (top.length ? 'Today: ' + top.map((r, i) => `${['🥇', '🥈', '🥉'][i]} ${esc(r.name)} <b>${fmt(r.t)}</b>`).join(' · ') : 'No laps yet today – set the first one!')
+    : chaos
     ? '🎲 <b>Chaos</b>: hit the <span style="color:#ffb347">? boxes</span> for items and fire them with your boost key. Boost pads, jump ramps, weather, and drift boosts (hold throttle + brake while steering). No ERS or DRS; laps don\'t count for records.'
     : hot
     ? '👻 <b>Ghost</b>: a see-through car replays the <span style="color:#ffc83d">track record</span> (from the online leaderboard) or <span style="color:#4fc8ff">your own best lap</span>. It starts when you cross the start line; <kbd>G</kbd> switches it while driving.'
@@ -4664,7 +4693,7 @@ function refreshMenu() {
   seg('ghostSeg', [['record', 'Record'], ['mine', 'My best'], ['off', 'Off']], cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
   document.getElementById('pc1').classList.toggle('off', solo);
   document.getElementById('soloNote').style.display = solo ? '' : 'none';
-  document.getElementById('startBtn').textContent = hot ? 'Start hot lap' : (chaos ? 'Start chaos ' : 'Start ') + (cupOn() ? 'cup' : 'race');
+  document.getElementById('startBtn').textContent = daily ? 'Start daily challenge' : hot ? 'Start hot lap' : (chaos ? 'Start chaos ' : 'Start ') + (cupOn() ? 'cup' : 'race');
   seg('lapsSeg', [[1, '1'], [3, '3'], [5, '5'], [10, '10']], cfg.laps, v => { cfg.laps = v; store.set('laps', v); });
   seg('camSeg', [['onboard', 'Onboard'], ['rear', 'Rear cam'], ['tv', 'TV']], cfg.cam, v => { cfg.cam = v; store.set('cam3d', v); });
   seg('cpuSeg', [[0, '0'], [1, '1'], [3, '3'], [5, '5']], cfg.cpu, v => { cfg.cpu = v; store.set('cpu', v); });
@@ -4721,13 +4750,15 @@ document.getElementById('helpBtn').onclick = () => show('helpOv', true);
 document.getElementById('helpCloseBtn').onclick = () => show('helpOv', false);
 let recTab = null;
 function showRecords() {
-  if (!recTab || !TRACKS[recTab]) recTab = TRACK.id;
+  if (!recTab || (!TRACKS[recTab] && recTab !== 'daily')) recTab = TRACK.id;
+  const D = dailyToday();
   const st = document.getElementById('onlineStatus');
   st.innerHTML = !onlineOn() ? 'Online records are not set up – showing Claude\'s times and laps from this browser.'
     : online.ok ? '🌐 <b style="color:#2bd96b">Online</b> – laps from everyone who plays. Set your name on the menu to upload yours (“Player 1/2” is not uploaded).'
     : online.tried ? `⚠ Online records unavailable (${esc(online.err)}) – showing this browser.` : 'Connecting to online records…';
   const tabs = document.getElementById('recTabs');
   tabs.innerHTML = '';
+  { const b = document.createElement('button'); b.textContent = '📅 Today'; if (recTab === 'daily') b.className = 'sel'; b.onclick = () => { recTab = 'daily'; showRecords(); }; tabs.appendChild(b); }
   for (const id of TRACK_ORDER) {
     const b = document.createElement('button'); b.textContent = TRACK_SHORT[id] || TRACKS[id].title;
     if (id === recTab) b.className = 'sel';
@@ -4736,14 +4767,43 @@ function showRecords() {
   }
   const mine = new Set(cfg.names.map(n => n.trim().toLowerCase()));
   const board = h => {
-    const rows = boardFor(recTab, h).slice(0, 15), lead = rows.length ? rows[0].t : 0;
-    return '<div style="margin-top:14px"><table><tr><th>#</th><th>Driver</th><th>Lap</th><th>Gap</th></tr>' +
+    const dly = recTab === 'daily', rows = boardFor(dly ? D.track : recTab, dly ? D.key : h).slice(0, 15), lead = rows.length ? rows[0].t : 0;
+    return (dly ? `<div class="sub" style="margin-top:14px">Daily challenge ${D.day}: <b style="color:#fff">${esc(TRACKS[D.track].title)}</b> · ${D.cond.icon} ${D.cond.name} – ${D.cond.desc}. New one in ${dailyLeft()}.</div>` : '') +
+      '<div style="margin-top:14px"><table><tr><th>#</th><th>Driver</th><th>Lap</th><th>Gap</th></tr>' +
       (rows.length ? rows.map((r, i) => `<tr class="${mine.has(r.name.trim().toLowerCase()) && !isDefaultName(r.name) ? 'me' : ''}" title="${r.d}"><td class="pos" style="font-size:15px">${i + 1}</td><td>${esc(r.name)}</td>` +
         `<td class="num"><b>${fmt(r.t)}</b></td><td class="num" style="color:var(--dim)">${i ? '+' + (r.t - lead).toFixed(3) : ''}</td></tr>`).join('')
         : '<tr><td colspan="4" style="color:var(--dim)">No laps yet</td></tr>') + '</table></div>';
   };
   document.getElementById('recBody').innerHTML = board('f1');
   show('recordsOv', true);
+}
+
+// ---------------------------------------------------------------- daily challenge
+// One track and one condition per day – the UTC date, so it's the same for everyone – with its own leaderboard
+// (laps stored with handling 'dYYYYMMDD'). It's a hot lap with that condition; the best valid lap of the day counts.
+const DAILY_CONDS = [
+  { id: 'rain', name: 'Rain', icon: '🌧', desc: 'a wet track – 18% less grip everywhere', rain: true },
+  { id: 'worn', name: 'Worn tyres', icon: '🛞', desc: 'old rubber – 12% less grip all lap', grip: 0.88 },
+  { id: 'noers', name: 'No ERS', icon: '🔋', desc: 'the battery is flat – no boost at all', noErs: true, f1: true },
+  { id: 'nodrs', name: 'No DRS', icon: '🚫', desc: 'the rear wing stays shut all lap', noDrs: true, f1: true },
+  { id: 'heavy', name: 'Full tanks', icon: '⛽', desc: 'a heavy car – 10% less power', power: 0.9 },
+  { id: 'storm', name: 'Storm', icon: '⛈', desc: 'rain and no ERS – survive it', rain: true, noErs: true, f1: true },
+  { id: 'glitter', name: 'Glitter storm', icon: '✨', desc: 'sparkly and slippery – 10% less grip', glitter: true, grip: 0.9 },
+];
+let dailyNow = null;                 // the challenge being driven right now (fixed at the start of the run)
+function dailyFor(date, avoid) {
+  const day = date.toISOString().slice(0, 10), key = 'd' + day.replace(/-/g, '');
+  let h = 2166136261; for (const ch of key + 'brickprix') h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const r = mulberry(h); r(); r();
+  let ti = Math.floor(r() * TRACK_ORDER.length);
+  if (TRACK_ORDER[ti] === avoid) ti = (ti + 1) % TRACK_ORDER.length;       // not the same track two days running
+  const track = TRACK_ORDER[ti], conds = DAILY_CONDS.filter(c => !(c.f1 && TRACKS[track].kart));
+  return { day, key, track, cond: conds[Math.floor(r() * conds.length)] };
+}
+function dailyToday() { const now = new Date(); return dailyFor(now, dailyFor(new Date(now.getTime() - 864e5)).track); }
+function dailyLeft() {               // time until the next challenge (UTC midnight)
+  const now = new Date(), next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1), m = Math.max(0, Math.floor((next - now) / 60000));
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
 }
 
 // ---------------------------------------------------------------- livery editor
