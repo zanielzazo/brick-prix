@@ -23,7 +23,7 @@ Karts have no ERS or DRS.
 ## Modes
 
 - **2 players**: split screen, standing start, 1–10 laps
-- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
+- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, ERS refilled at the line every lap, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
 - **Chaos** (1 or 2 players): mystery **?** boxes on the straights give you an item, and your boost key fires it. Whoever is behind gets better items. No ERS, DRS or track-limit penalties; chaos laps don't count for records.
   - **Items**: Turbo Brick (or Triple Turbo), Oil Slick, Loose Tyre (rolls ahead), Safety Car (slows the leader), Local Shower (a rain cloud over the car ahead, less grip for 4 s), Phantom (drive through cars and hazards for 3.5 s), Brick Wall (dropped behind you) and Pit Stop (clears a spin, Safety Car or shower and gives a short boost)
   - **Boost pads** (blue arrows) at corner exits and **jump ramps** (yellow and black) on the two fastest straights; you can drive around the ramps
