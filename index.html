@@ -920,38 +920,113 @@ const AU = {
     const buf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     this.noise = buf;
+    const shaper = k => { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } const w = a.createWaveShaper(); w.curve = c; w.oversample = '2x'; return w; };
+    const noiseSrc = () => { const n = a.createBufferSource(); n.buffer = buf; n.loop = true; n.loopStart = Math.random(); n.start(0, Math.random() * 1.9); return n; };
+    const osc = (type, f) => { const o = a.createOscillator(); o.type = type; o.frequency.value = f; o.start(); return o; };
+    const gain = (v, to) => { const g = a.createGain(); g.gain.value = v; if (to) g.connect(to); return g; };
+    const filt = (type, f, q, to) => { const b = a.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; if (to) b.connect(to); return b; };
     this.engines = [-0.55, 0.55].map(pan => {
       const p = a.createStereoPanner ? a.createStereoPanner() : a.createGain();
       if (p.pan) p.pan.value = pan;
       p.connect(this.master);
-      const out = a.createGain(); out.gain.value = 0; out.connect(p);
-      const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900; f.Q.value = 3; f.connect(out);
-      const o1 = a.createOscillator(); o1.type = 'sawtooth';
-      const o2 = a.createOscillator(); o2.type = 'square';
-      const g2 = a.createGain(); g2.gain.value = 0.35;
-      o1.connect(f); o2.connect(g2); g2.connect(f);
-      o1.start(); o2.start();
-      const sq = a.createBufferSource(); sq.buffer = buf; sq.loop = true;
-      const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 4;
-      const sg = a.createGain(); sg.gain.value = 0;
-      sq.connect(bp); bp.connect(sg); sg.connect(p); sq.start();
-      return { o1, o2, f, out, sg, p };
+      // F1: V6 turbo-hybrid – saw + sub square, a little grit, and the turbo's whistle on top
+      const out = gain(0, p), f = filt('lowpass', 900, 3, out), grit = shaper(1.6); grit.connect(f);
+      const o1 = osc('sawtooth', 100), o2 = osc('square', 50), g2 = gain(0.35, grit); o1.connect(grit); o2.connect(g2);
+      const turbo = osc('sine', 3000), tg = gain(0, out); turbo.connect(tg);
+      // kart: a single-cylinder two-stroke – a buzzy, overdriven pulse with a raspy exhaust gated at the firing rate
+      const kOut = gain(0, p), kLp = filt('lowpass', 2500, 0.8, kOut), kWs = shaper(5); kWs.connect(kLp);
+      const k1 = osc('sawtooth', 150), k2 = osc('square', 300), kg2 = gain(0.45, kWs); k1.connect(kWs); k2.connect(kg2);
+      const rasp = gain(0.5, kLp), rbp = filt('bandpass', 2600, 0.9, rasp); noiseSrc().connect(rbp);
+      const gate = osc('square', 150), gateG = gain(0.5); gate.connect(gateG); gateG.connect(rasp.gain);
+      // tyre squeal: a wavering screech (two detuned tones) with some hiss
+      const sg = gain(0, p), sqF = filt('bandpass', 1250, 2.5, sg);
+      const s1 = osc('triangle', 1150), s2 = osc('triangle', 1330), sm = gain(0.5, sqF); s1.connect(sm); s2.connect(sm);
+      const hiss = gain(0.35, sqF); noiseSrc().connect(hiss);
+      // run-off / grass: low gravel rumble
+      const rg = gain(0, p), rlp = filt('lowpass', 260, 0.7, rg); noiseSrc().connect(rlp);
+      return { o1, o2, f, out, turbo, tg, kOut, kLp, k1, k2, gate, sg, s1, s2, rg, p, popT: 0 };
+    });
+    // crowd: a murmur that rises near the grandstands, and cheers at the start, the finish and records
+    this.crowd = gain(0, this.master);
+    const cbp = filt('bandpass', 900, 0.7, this.crowd); noiseSrc().connect(cbp); this.crowdF = cbp;
+    const voices = gain(0.6, this.crowd), vbp = filt('bandpass', 480, 2.5, voices); noiseSrc().connect(vbp);
+    const wob = osc('sine', 0.35), wobG = gain(0.35); wob.connect(wobG); wobG.connect(voices.gain);
+    this.cheerV = 0;
+    // jets: two voices for the two loudest aircraft – a deep roar, the fan whine, and a prop buzz for turboprops
+    this.jets = [0, 1].map(() => {
+      const out = gain(0, this.master), roar = filt('lowpass', 220, 0.6, out); noiseSrc().connect(roar);
+      const wg = gain(0, out), whine = filt('bandpass', 3200, 6, wg); noiseSrc().connect(whine);
+      const pg = gain(0, out), prop = osc('sawtooth', 75), plp = filt('lowpass', 500, 1, pg); prop.connect(plp);
+      return { out, roar, wg, whine, pg, prop };
     });
   },
   update(cars, active) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime;
+    const t = this.ctx.currentTime, kart = !!(TRACK && TRACK.kart);
     this.engines.forEach((e, i) => {
       const c = cars[i];
-      if (!c || !active) { e.out.gain.setTargetAtTime(0, t, 0.08); e.sg.gain.setTargetAtTime(0, t, 0.05); return; }
-      const f = c.rpm / 60 * 1.5;
-      e.o1.frequency.setTargetAtTime(f, t, 0.02);
-      e.o2.frequency.setTargetAtTime(f * 0.5, t, 0.02);
-      e.f.frequency.setTargetAtTime(500 + c.throttle * 2600 + c.rpm * 0.08, t, 0.04);
-      e.out.gain.setTargetAtTime(0.05 + c.throttle * 0.08, t, 0.05);
-      const sq = c.surf === SURF.track || c.surf === SURF.kerb ? clamp((c.slip - 2) / 8, 0, 1) : 0;
-      e.sg.gain.setTargetAtTime(sq * 0.09, t, 0.05);
+      if (!c || !active) { for (const g of [e.out, e.kOut, e.sg, e.rg]) g.gain.setTargetAtTime(0, t, 0.08); return; }
+      const sp = Math.abs(c.vf);
+      if (kart) {
+        const f = c.rpm / 60 * 1.35;          // two-stroke: one bang per revolution
+        e.k1.frequency.setTargetAtTime(f, t, 0.015); e.k2.frequency.setTargetAtTime(f * 2, t, 0.015); e.gate.frequency.setTargetAtTime(f, t, 0.015);
+        e.kLp.frequency.setTargetAtTime(1200 + c.throttle * 3800, t, 0.03);
+        e.kOut.gain.setTargetAtTime(0.035 + c.throttle * 0.075, t, 0.03); e.out.gain.setTargetAtTime(0, t, 0.05); e.tg.gain.setTargetAtTime(0, t, 0.05);
+        e.popT -= 1 / 60;                     // off the throttle at speed it pops and crackles
+        if (c.throttle < 0.1 && sp > 9 && e.popT <= 0 && Math.random() < 0.18) { this.pop(0.05 + Math.random() * 0.05, e.p); e.popT = 0.05; }
+      } else {
+        const f = c.rpm / 60 * 1.5;
+        e.o1.frequency.setTargetAtTime(f, t, 0.02);
+        e.o2.frequency.setTargetAtTime(f * 0.5, t, 0.02);
+        e.f.frequency.setTargetAtTime(500 + c.throttle * 2600 + c.rpm * 0.08, t, 0.04);
+        e.out.gain.setTargetAtTime(0.05 + c.throttle * 0.08, t, 0.05); e.kOut.gain.setTargetAtTime(0, t, 0.05);
+        e.turbo.frequency.setTargetAtTime(1800 + c.rpm * 0.32, t, 0.08); e.tg.gain.setTargetAtTime(c.throttle * 0.012, t, 0.15);
+      }
+      const onTarmac = c.surf === SURF.track || c.surf === SURF.kerb, sq = onTarmac ? clamp((c.slip - (kart ? 1.5 : 2)) / 7, 0, 1) : 0;
+      const wv = Math.sin(t * 23 + i * 3) * 40 + Math.sin(t * 7.3) * 25;
+      e.s1.frequency.setTargetAtTime((kart ? 1350 : 1150) + wv, t, 0.03); e.s2.frequency.setTargetAtTime((kart ? 1560 : 1330) - wv, t, 0.03);
+      e.sg.gain.setTargetAtTime(sq * 0.07, t, 0.04);
+      e.rg.gain.setTargetAtTime(onTarmac || c.air ? 0 : clamp(sp / 40, 0, 1) * 0.22, t, 0.06);
     });
+    this.world(cars[0], active);
+  },
+  // crowd and aircraft around the listener (player 1's car)
+  world(c, active) {
+    const t = this.ctx.currentTime;
+    if (!c || !active || !T) { this.crowd.gain.setTargetAtTime(0, t, 0.3); this.jets.forEach(j => j.out.gain.setTargetAtTime(0, t, 0.2)); return; }
+    const sf = sToPoint(0, 0), d = Math.hypot(c.x - sf.x, c.y - sf.y), near = TRACK.kart ? 120 : 260;
+    this.cheerV = Math.max(0, this.cheerV - 1 / 60 * 0.35);
+    const base = (TRACK.kart ? 0.02 : 0.045) * (0.25 + 0.75 * clamp(1 - d / near, 0, 1));
+    this.crowd.gain.setTargetAtTime(base + this.cheerV * 0.16, t, 0.12);
+    this.crowdF.frequency.setTargetAtTime(850 + this.cheerV * 900, t, 0.15);
+    // aircraft: the overhead traffic, plus the ones taxiing across at Graz Airport
+    const src = (GFX && GFX.jets) ? GFX.jets() : [];
+    if (TRACK.airport) for (const p of taxis) { const ty = TAXI_TYPES[p.type] || { r: 2 }; src.push({ x: p.x, y: 3, z: TAXILANE.y, vx: -p.speed, vz: 0, size: ty.r / 2 * 0.6, prop: /atr|dash8/.test(p.type) }); }
+    const lx = c.x, ly = c.alt + 1, lz = c.y, L = [];
+    for (const q of src) {
+      const dx = q.x - lx, dy = q.y - ly, dz = q.z - lz, dd = Math.max(20, Math.hypot(dx, dy, dz));
+      const loud = q.size * 45 / dd;
+      if (loud > 0.02) L.push({ q, dd, loud, vr: (dx * q.vx + dz * q.vz) / dd });
+    }
+    L.sort((a, b) => b.loud - a.loud);
+    this.jets.forEach((j, k) => {
+      const e = L[k];
+      if (!e) { j.out.gain.setTargetAtTime(0, t, 0.3); return; }
+      const dop = clamp(343 / (343 + e.vr), 0.7, 1.4);      // coming → higher, going → lower
+      j.out.gain.setTargetAtTime(clamp(e.loud, 0, 1) * 0.42, t, 0.12);
+      j.roar.frequency.setTargetAtTime(clamp(160 + 900 / Math.sqrt(e.dd), 120, 420) * dop, t, 0.15);
+      j.wg.gain.setTargetAtTime(e.q.prop ? 0.05 : 0.22 * clamp(120 / e.dd, 0.1, 1), t, 0.15);
+      j.whine.frequency.setTargetAtTime((e.q.prop ? 1800 : 3300) * dop, t, 0.15);
+      j.pg.gain.setTargetAtTime(e.q.prop ? 0.5 : 0, t, 0.15); j.prop.frequency.setTargetAtTime(78 * dop, t, 0.15);
+    });
+  },
+  cheer(k = 1) { this.cheerV = Math.min(1.3, this.cheerV + k); },
+  pop(vol, to) {
+    if (!this.ctx) return;
+    const a = this.ctx, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = this.noise; f.type = 'bandpass'; f.frequency.value = 700 + Math.random() * 900; f.Q.value = 1.2; g.gain.value = vol;
+    g.gain.setTargetAtTime(0, a.currentTime + 0.012, 0.015);
+    s.connect(f); f.connect(g); g.connect(to || this.master); s.start(0, Math.random() * 1.5); s.stop(a.currentTime + 0.12);
   },
   beep(freq, dur, vol = 0.18) {
     if (!this.ctx) return;
@@ -2118,6 +2193,7 @@ function step(dt) {
     if (cd.t >= cd.out) {
       state = 'race'; raceStart = simTime;
       cars.forEach(c => { c.lapStart = c.sectorStart = simTime; c.timing = true; say(c, 'GO!', GREEN, 1.2); });
+      AU.cheer(1);
     } else locked = true;
   }
   const inputs = cars.map((c, i) => c.cpu ? cpuInput(c) : c.remote ? null : readInput(i));
@@ -2317,7 +2393,7 @@ function lapDone(c) {
   } else if (pb) say(c, 'PERSONAL BEST  ' + fmt(lt), GREEN, 2.2);
   if (!invalid && !isChaos() && !c.cpu && (!record || lt < record.t)) {
     record = { t: lt, name: c.name, d: new Date().toISOString().slice(0, 10) }; store.set(recordKey(), record);
-    c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3);
+    c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3); AU.cheer(0.8);
   }
   if (!invalid && !isChaos()) uploadLap(c, lt, lapRec);
   if (isHot()) { c.ers = 1; lateLimits(c); return; }          // hot lap: a full battery for every timed lap
@@ -2325,6 +2401,7 @@ function lapDone(c) {
     c.finished = true; c.finishedAt = simTime; c.finishTime = simTime - raceStart;
     finishOrder.push(c); c.place = finishOrder.length;
     say(c, c.place === 1 ? 'WINNER!' : 'FINISHED  P' + c.place, c.place === 1 ? '#ffd23f' : '#fff', 6);
+    if (!c.cpu) AU.cheer(c.place === 1 ? 1.2 : 0.5);
     if (cars.every(o => o.finished)) resultsAt = simTime + 3;
   } else if (c.lapsDone === cfg.laps - 1) say(c, 'FINAL LAP', '#fff', 2.2);
 }
@@ -3909,7 +3986,9 @@ function buildGfx() {
     return cams;
   }
   buildScene();
-  return { reset, addSkid, resize, render, buildScene, replaySnap: () => { rpCam.snap = true; rpCam.station = -1; }, planeInfo: () => planes.map(p => ({ type: p.type, liv: p.liv, kind: p.kind, s: Math.round(p.s), x: Math.round(p.mesh.position.x), y: Math.round(p.mesh.position.y), z: Math.round(p.mesh.position.z), parts: p.mesh.children.length })) };
+  const jets = () => planes.map(p => { const P = PLANE_TYPES[p.type] || {}; return { x: p.mesh.position.x, y: p.mesh.position.y, z: p.mesh.position.z,
+    vx: p.dx * p.speed, vz: p.dy * p.speed, size: p.type === 'cessna' ? 0.25 : (P.r || 2) / 2, prop: !!P.prop }; });
+  return { reset, addSkid, resize, render, buildScene, jets, replaySnap: () => { rpCam.snap = true; rpCam.station = -1; }, planeInfo: () => planes.map(p => ({ type: p.type, liv: p.liv, kind: p.kind, s: Math.round(p.s), x: Math.round(p.mesh.position.x), y: Math.round(p.mesh.position.y), z: Math.round(p.mesh.position.z), parts: p.mesh.children.length })) };
 }
 
 // ---------------------------------------------------------------- HUD (2D overlay)
