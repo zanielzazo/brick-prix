@@ -85,6 +85,15 @@
     border-radius:6px; padding:7px 9px; font-size:15px; font-weight:600; }
   .swatches { display:flex; gap:7px; margin-bottom:10px; }
   .sw { width:24px; height:24px; border-radius:50%; cursor:pointer; border:2px solid transparent; }
+  .livbtn { padding:5px 10px !important; font-size:12px !important; margin-left:auto; }
+  .livgrid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:18px; margin-top:12px; }
+  @media (max-width:760px) { .livgrid { grid-template-columns:1fr; } }
+  #livCanvas { width:100%; aspect-ratio:16/10; border-radius:10px; background:radial-gradient(ellipse at 50% 70%, #2a3140, #0f1216 70%); display:block; }
+  .livrow { display:flex; align-items:center; gap:10px; margin:0 0 10px; flex-wrap:wrap; font-size:13px; }
+  .livrow > span:first-child { width:92px; color:var(--dim); font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+  .livrow input[type=color] { width:44px; height:30px; padding:0; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; }
+  .livrow input[type=text], .livrow input[type=number] { background:#0d0f13; border:1px solid var(--line); color:var(--txt); border-radius:7px; padding:7px 10px; font:700 14px "Segoe UI",sans-serif; }
+  .livrow input[type=number] { width:78px; } .livrow input[type=text] { width:170px; text-transform:uppercase; }
   .sw.sel { border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.25); }
   .keys { font-size:13px; color:var(--dim); line-height:1.7; }
   kbd { display:inline-block; min-width:22px; padding:1px 6px; border:1px solid rgba(255,255,255,.25); border-bottom-width:2px;
@@ -172,14 +181,14 @@
       </div>
       <div class="players">
         <div class="pcard" id="pc0">
-          <label>Player 1</label>
+          <label style="display:flex;align-items:center">Player 1 <button class="btn ghost livbtn" id="livBtn0">🎨 Livery</button></label>
           <input id="name0" maxlength="14" placeholder="Your name (required)" autocomplete="off">
           <div class="swatches" id="sw0"></div>
           <div class="keys"><kbd>W</kbd> throttle · <kbd>S</kbd> brake / reverse · <kbd>A</kbd><kbd>D</kbd> steer<br><kbd>Space</kbd> ERS boost · <kbd>C</kbd> change camera · or gamepad 1</div>
           <div class="solo-note" id="soloNote">Arrow keys work too · Hot lap: <kbd>R</kbd> restart, <kbd>G</kbd> ghost</div>
         </div>
         <div class="pcard" id="pc1">
-          <label>Player 2</label>
+          <label style="display:flex;align-items:center">Player 2 <button class="btn ghost livbtn" id="livBtn1">🎨 Livery</button></label>
           <input id="name1" maxlength="14" placeholder="Your name (required)" autocomplete="off">
           <div class="swatches" id="sw1"></div>
           <div class="keys"><kbd>↑</kbd> throttle · <kbd>↓</kbd> brake / reverse · <kbd>←</kbd><kbd>→</kbd> steer<br><kbd>Enter</kbd>/<kbd>Right Ctrl</kbd> ERS · <kbd>Delete</kbd> or <kbd>.</kbd> camera · or gamepad 2</div>
@@ -232,6 +241,39 @@
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · <kbd>T</kbd> telemetry · <kbd>V</kbd> replay (results/pause: TV, onboard, rear or free camera, 0.25×–4×) · <kbd>P</kbd> photo mode · gamepads work too.</div>
       </div>
       <div class="go"><button class="btn" id="helpCloseBtn">Close (Esc)</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="liveryOv" class="overlay" style="z-index:6">
+  <div class="panel" style="width:min(940px,100%)">
+    <div class="checker"></div>
+    <div class="inner">
+      <h1 style="font-size:36px"><span id="livWho">PLAYER 1</span> <span>LIVERY</span></h1>
+      <div class="livgrid">
+        <div>
+          <canvas id="livCanvas"></canvas>
+          <div class="livrow" style="margin-top:10px"><span>Preview</span><div class="seg" id="livCar"></div></div>
+        </div>
+        <div>
+          <div class="livrow"><span>Start from</span><div class="swatches" id="livPresets" style="margin:0"></div></div>
+          <div class="livrow"><span>Colours</span>
+            <label title="Main">Main <input type="color" id="livC"></label>
+            <label title="Secondary: engine cover, driver's suit">2nd <input type="color" id="livD"></label>
+            <label title="Accent: stripe, number and name">Accent <input type="color" id="livA"></label>
+          </div>
+          <div class="livrow"><span>Helmet</span><input type="color" id="livH"></div>
+          <div class="livrow"><span>Pattern</span><div class="seg" id="livPat"></div></div>
+          <div class="livrow"><span>Number</span><input type="number" id="livNum" min="0" max="99"></div>
+          <div class="livrow"><span>Name on side</span><input type="text" id="livSide" maxlength="12" autocomplete="off"></div>
+          <div class="sub" style="margin-top:4px">Saved in this browser with your name. Online, your friends see your livery too.</div>
+        </div>
+      </div>
+      <div class="go">
+        <button class="btn" id="livSave">Save (Enter)</button>
+        <button class="btn ghost" id="livReset">Back to default</button>
+        <button class="btn ghost" id="livCancel" style="margin-left:auto">Cancel (Esc)</button>
+      </div>
     </div>
   </div>
 </div>
@@ -402,6 +444,23 @@ const COLORS = [
   { c: '#d4dae0', d: '#1b1f24', helmet: '#00d2be' },
   { c: '#7bd21b', d: '#1f3a06', helmet: '#ffffff' },
 ];
+// Liveries: each player's own car (main/secondary/accent colours, helmet, race number, name on the side, pattern),
+// saved in this browser. Anything that comes from another player online goes through cleanLivery first.
+const hexOk = v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+const LIV_PATTERNS = [['solid', 'Solid'], ['stripe', 'Racing stripe'], ['twotone', 'Two-tone']];
+function cleanLivery(l, fb = COLORS[0]) {
+  l = l || {};
+  return { c: hexOk(l.c) ? l.c : fb.c, d: hexOk(l.d) ? l.d : fb.d, a: hexOk(l.a) ? l.a : '#ffffff', helmet: hexOk(l.helmet) ? l.helmet : fb.helmet,
+    num: clamp(parseInt(l.num, 10) || 0, 0, 99), side: String(l.side || '').toUpperCase().replace(/[^A-Z0-9À-Ý .!&'-]/g, '').slice(0, 12),
+    pattern: LIV_PATTERNS.some(q => q[0] === l.pattern) ? l.pattern : 'solid' };
+}
+function savedLiveries() { const v = store.get('livery', null); return Array.isArray(v) ? v : [null, null]; }
+function liveryFor(p) {          // what player p's car looks like (the colour swatch if they never made a livery)
+  const base = COLORS[cfg.colors[p]] || COLORS[p], saved = savedLiveries()[p];
+  const l = cleanLivery(saved || { ...base, num: p ? 22 : 7 }, base);
+  if (!l.side) l.side = cleanLivery({ side: isDefaultName(cfg.names[p] || '') ? '' : cfg.names[p] }).side;
+  return l;
+}
 // Corner heights (m) are approximate, hand-tuned to give each circuit its character – not surveyed data.
 const ALG_NAMES = { '4': 'Curva Lagos', '6': 'Torre VIP', '9': 'Curva Samsung', '10': 'Craig Jones', '11': 'Curva Portimão', '14': 'Curva Sagres', '15': 'Curva Galp' };
 const ALG_HEIGHT = { 1: 22, 2: 19, 3: 15, 4: 21, 5: 11, 6: 16, 7: 23, 8: 30, 9: 36, 10: 28, 11: 22, 12: 25, 13: 30, 14: 24, 15: 19 };
@@ -1151,7 +1210,7 @@ let record = null;
 
 function makeCar(id) {
   return {
-    id, name: cfg.names[id] || 'Player ' + (id + 1), col: COLORS[cfg.colors[id]] || COLORS[id],
+    id, name: cfg.names[id] || 'Player ' + (id + 1), col: liveryFor(id),
     x: 0, y: 0, h: 0, vx: 0, vy: 0, vf: 0, px: 0, py: 0, steer: 0, delta: 0, alt: 0, pitch: 0,
     ti: 0, s: 0, prog: 0, localD: 0, lapsDone: 0, lapStart: 0, sectorStart: 0, secIdx: 0,
     curSec: [], best: Infinity, last: null, bestSec: [Infinity, Infinity, Infinity], lapTimes: [],
@@ -1188,6 +1247,7 @@ function makeCpu(id, k, names) {
   if (TRACK.jokes && c.name === 'Filipe') c.col = { c: '#ff6fa3', d: '#5a1035', helmet: '#ffe066' };
   c.skill = lv.skill + (Math.random() - 0.5) * 0.02; c.gripK = lv.grip * (1 + (Math.random() - 0.5) * 0.04); c.brakeK = lv.brake;
   if (TRACK.kart && !c.clumsy) c.gripK = Math.max(c.gripK, 1.1);   // tight kart tracks: a little grip margin so CPUs don't end up in the tyres
+  c.col = { ...c.col, num: [3, 5, 11, 16, 31, 63, 77][k % 7], side: c.name.toUpperCase().slice(0, 12), a: '#ffffff' };
   c.lane = 0; c.laneT = 0; c.itemT = 0; c.stuckT = 0; c.camMode = 'rear';
   return c;
 }
@@ -1664,7 +1724,7 @@ function startRace(rematch) {
   cars = hs.concat(cpus);
   if (NET.race) for (const P of NET.peers.values()) {     // online: the other players' cars, driven by their own computers
     const c = makeCar(cars.length);
-    c.remote = true; c.peer = P; P.car = c; c.left = !!P.left; c.name = P.meta.name || '?'; c.col = COLORS[P.meta.col] || COLORS[0]; c.camMode = 'rear';
+    c.remote = true; c.peer = P; P.car = c; c.left = !!P.left; c.name = P.meta.name || '?'; c.col = cleanLivery(P.meta.liv || COLORS[P.meta.col], COLORS[P.meta.col] || COLORS[0]); c.camMode = 'rear';
     cars.push(c);
   }
   if (NET.race && cfg.mode !== 'hot') {                   // the host's grid order
@@ -1963,6 +2023,10 @@ function onKeyPress(code) {
   if (document.getElementById('telOv').classList.contains('show')) { if (code === 'Escape' || code === 'KeyT' || code === 'Enter') closeTel(); return; }
   if (state === 'replay') { replayKey(code); return; }
   if (state === 'menu') {
+    if (document.getElementById('liveryOv').classList.contains('show')) {
+      if (code === 'Escape') closeLivery(false); else if (code === 'Enter' || code === 'NumpadEnter') closeLivery(true);
+      return;
+    }
     if (document.getElementById('onlineOv').classList.contains('show')) {
       if (code === 'Escape') show('onlineOv', false);
       else if (code === 'Enter' || code === 'NumpadEnter') { if (!NET.room) netJoinClick(); else if (NET.host) netStartRace(); }
@@ -3086,16 +3150,36 @@ function buildGfx() {
     rain: [0.7, 0.82, 1, 0.75], dblue: [0.35, 0.75, 1, 1], dorange: [1, 0.55, 0.12, 1], brick: [0.7, 0.24, 0.14, 1], pit: [0.2, 0.9, 0.45, 0.9] };
 
   // Kart: tray chassis, side pods, nose fairing, driver sitting up in the open, four small tyres.
+  // livery decals: race number and name on the car, as transparent textures (cached per text and colour)
+  const lum = h => { const c = new THREE.Color(h); return 0.3 * c.r + 0.59 * c.g + 0.11 * c.b; };
+  const decalTex = (text, col, wide) => cachedTex('dec' + (wide ? 'w' : 'n') + text + col, () => canvasTex(wide ? 512 : 256, 128, (g, w, h) => {
+    g.font = `900 ${wide ? 78 : 104}px "Segoe UI", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round'; g.lineWidth = wide ? 12 : 14; g.strokeStyle = lum(col) > 0.55 ? '#111318' : '#ffffff';
+    g.strokeText(text, w / 2, h / 2 + 5, w - 24); g.fillStyle = col; g.fillText(text, w / 2, h / 2 + 5, w - 24);
+  }));
+  const decal = (par, tex, w, h, x, y, z, ry, up) => {
+    const geo = new THREE.PlaneGeometry(w, h);
+    if (up) { geo.rotateX(-Math.PI / 2); geo.rotateY(-Math.PI / 2); }   // lying on top, readable from the cockpit
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    m.position.set(x, y, z); if (!up) m.rotation.y = ry; par.add(m); return m;
+  };
   function kartModel(col) {
     const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
     const L = c => new THREE.MeshLambertMaterial({ color: c });
-    const mBody = L(col.c), mDark = L(col.d), mFrame = L('#2b2d31'), mTyre = L('#141414'), mSuit = L(col.d);
+    const mBody = L(col.c), mDark = L(col.d), mFrame = L('#2b2d31'), mTyre = L('#141414'), mSuit = L(col.d), mAcc = L(col.a || col.helmet), mPod = col.pattern === 'twotone' ? mDark : mBody;
     const box = (w, h, d, m, x, y, z, par = body) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); par.add(b); return b; };
     box(1.55, 0.04, 0.82, mFrame, 0, 0.09, 0);                 // chassis tray
     box(0.42, 0.2, 1.02, mBody, 0.86, 0.17, 0);                // front fairing / bumper
     box(0.34, 0.2, 0.42, mBody, 0.6, 0.27, 0);                 // nose
     box(0.06, 0.16, 0.3, L('#f4f4f4'), 0.78, 0.36, 0);         // number plate
-    for (const z of [-0.6, 0.6]) box(0.95, 0.16, 0.16, mBody, -0.02, 0.16, z);   // side pods
+    for (const z of [-0.6, 0.6]) box(0.95, 0.16, 0.16, mPod, -0.02, 0.16, z);    // side pods
+    if (col.pattern === 'stripe') { box(0.42, 0.012, 0.12, mAcc, 0.86, 0.276, 0); box(0.34, 0.012, 0.1, mAcc, 0.6, 0.376, 0); }
+    if (col.num != null) {
+      const nt = decalTex(String(col.num), col.a || '#ffffff');
+      decal(body, nt, 0.3, 0.15, 0.815, 0.36, 0, Math.PI / 2);           // front number plate
+      decal(body, nt, 0.4, 0.2, -0.425, 0.42, 0, -Math.PI / 2);          // seat back
+    }
+    if (col.side) { const st = decalTex(col.side, col.a || '#ffffff', true); for (const z of [-1, 1]) decal(body, st, 0.66, 0.165, -0.02, 0.165, z * 0.682, z > 0 ? 0 : Math.PI); }
     box(0.12, 0.12, 1.3, mFrame, -0.9, 0.15, 0);               // rear bumper
     box(0.12, 0.42, 0.42, mDark, -0.36, 0.38, 0);              // seat back
     box(0.34, 0.42, 0.4, mSuit, -0.18, 0.52, 0);               // driver torso
@@ -3129,13 +3213,23 @@ function buildGfx() {
   function carModel(col) {
     const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
     const L = c => new THREE.MeshLambertMaterial({ color: c });
-    const mBody = L(col.c), mDark = L(col.d), mCarbon = L('#1b1c1f'), mTyre = L('#141414');
+    const mBody = L(col.c), mDark = L(col.d), mCarbon = L('#1b1c1f'), mTyre = L('#141414'), mAcc = L(col.a || col.helmet), mPod = col.pattern === 'twotone' ? mDark : mBody;
     const box = (w, h, d, m, x, y, z, par = body) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); par.add(b); return b; };
     box(4.6, 0.06, 1.5, mCarbon, -0.1, 0.1, 0);               // floor
+    if (col.pattern === 'stripe') {                           // racing stripe down the middle
+      box(1.7, 0.012, 0.12, mAcc, 1.85, 0.446, 0); box(0.6, 0.012, 0.08, mAcc, 2.85, 0.336, 0);
+      box(1.6, 0.012, 0.14, mAcc, 0.4, 0.676, 0); box(1.5, 0.012, 0.14, mAcc, -1.5, 0.776, 0);
+    }
+    if (col.num != null) {
+      const nt = decalTex(String(col.num), col.a || '#ffffff');
+      for (const z of [-1, 1]) decal(body, nt, 0.84, 0.42, -1.5, 0.54, z * 0.252, z > 0 ? 0 : Math.PI);   // engine cover
+      decal(body, nt, 0.56, 0.28, 2.3, 0.452, 0, 0, true);                                                // on the nose, seen from the cockpit
+    }
+    if (col.side) { const st = decalTex(col.side, col.a || '#ffffff', true); for (const z of [-1, 1]) decal(body, st, 1.4, 0.35, -0.55, 0.34, z * 0.712, z > 0 ? 0 : Math.PI); }
     box(1.7, 0.24, 0.36, mBody, 1.85, 0.32, 0);               // nose
     box(0.6, 0.18, 0.2, mBody, 2.85, 0.24, 0);                // nose tip
     box(1.6, 0.5, 0.78, mBody, 0.4, 0.42, 0);                 // tub
-    box(1.7, 0.42, 1.42, mBody, -0.55, 0.33, 0);              // sidepods
+    box(1.7, 0.42, 1.42, mPod, -0.55, 0.33, 0);               // sidepods
     box(1.5, 0.5, 0.5, mDark, -1.5, 0.52, 0);                 // engine cover
     box(0.5, 0.42, 0.34, mDark, -0.15, 0.92, 0);              // airbox
     box(0.5, 0.05, 1.95, mCarbon, 2.7, 0.12, 0);              // front wing
@@ -3986,9 +4080,36 @@ function buildGfx() {
     return cams;
   }
   buildScene();
+  let pv = null;
+  function preview(canvas, col, kart) {       // livery editor: the car on a turntable; preview(null) stops it
+    if (!canvas) { if (pv) pv.on = false; return; }
+    if (!pv) {
+      const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }), sc = new THREE.Scene();
+      sc.add(new THREE.HemisphereLight('#e2efff', '#3a4150', 0.95));
+      const dl = new THREE.DirectionalLight('#fff3dc', 0.85); dl.position.set(-3, 6, 4); sc.add(dl);
+      const fl = new THREE.Mesh(new THREE.CircleGeometry(6, 40), new THREE.MeshLambertMaterial({ color: '#2a2f38' })); fl.rotation.x = -Math.PI / 2; sc.add(fl);
+      pv = { r, sc, cam: new THREE.PerspectiveCamera(28, 1.6, 0.1, 100), g: null, on: false, a: 0.7, fl };
+    }
+    if (pv.g) { pv.sc.remove(pv.g); pv.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !shared.has(o.material.map) && o.material.map !== shTex) o.material.dispose(); }); }
+    const m = kart ? kartModel(col) : carModel(col); scene.remove(m.g); pv.sc.add(m.g); pv.g = m.g; pv.kart = kart;
+    pv.fl.scale.setScalar(kart ? 0.45 : 1);
+    if (pv.on) return;
+    pv.on = true;
+    const loop = () => {
+      if (!pv.on) return;
+      const w = canvas.clientWidth || 480, h = canvas.clientHeight || 300, dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { pv.r.setPixelRatio(dpr); pv.r.setSize(w, h, false); }
+      pv.a += 0.006;
+      const d = pv.kart ? 3.4 : 8.2;
+      pv.cam.aspect = w / h; pv.cam.position.set(Math.cos(pv.a) * d, d * 0.36, Math.sin(pv.a) * d); pv.cam.lookAt(0, pv.kart ? 0.3 : 0.45, 0); pv.cam.updateProjectionMatrix();
+      pv.r.render(pv.sc, pv.cam);
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }
   const jets = () => planes.map(p => { const P = PLANE_TYPES[p.type] || {}; return { x: p.mesh.position.x, y: p.mesh.position.y, z: p.mesh.position.z,
     vx: p.dx * p.speed, vz: p.dy * p.speed, size: p.type === 'cessna' ? 0.25 : (P.r || 2) / 2, prop: !!P.prop }; });
-  return { reset, addSkid, resize, render, buildScene, jets, replaySnap: () => { rpCam.snap = true; rpCam.station = -1; }, planeInfo: () => planes.map(p => ({ type: p.type, liv: p.liv, kind: p.kind, s: Math.round(p.s), x: Math.round(p.mesh.position.x), y: Math.round(p.mesh.position.y), z: Math.round(p.mesh.position.z), parts: p.mesh.children.length })) };
+  return { reset, addSkid, resize, render, buildScene, jets, preview, replaySnap: () => { rpCam.snap = true; rpCam.station = -1; }, planeInfo: () => planes.map(p => ({ type: p.type, liv: p.liv, kind: p.kind, s: Math.round(p.s), x: Math.round(p.mesh.position.x), y: Math.round(p.mesh.position.y), z: Math.round(p.mesh.position.z), parts: p.mesh.children.length })) };
 }
 
 // ---------------------------------------------------------------- HUD (2D overlay)
@@ -4488,10 +4609,14 @@ function refreshMenu() {
       const d = document.createElement('div');
       d.className = 'sw' + (cfg.colors[p] === i ? ' sel' : '');
       d.style.background = `linear-gradient(135deg, ${c.c} 60%, ${c.d} 60%)`;
-      d.onclick = () => { if (cfg.colors[1 - p] === i) cfg.colors[1 - p] = cfg.colors[p]; cfg.colors[p] = i; store.set('colors', cfg.colors); refreshMenu(); if (NET.joined) netTrack(); };
+      d.onclick = () => {
+        if (cfg.colors[1 - p] === i) cfg.colors[1 - p] = cfg.colors[p]; cfg.colors[p] = i; store.set('colors', cfg.colors);
+        const lv = savedLiveries(); if (lv[p]) { Object.assign(lv[p], { c: c.c, d: c.d, helmet: c.helmet }); store.set('livery', lv); }   // a swatch recolours your livery
+        refreshMenu(); if (NET.joined) netTrack();
+      };
       box.appendChild(d);
     });
-    document.getElementById('pc' + p).style.setProperty('--pc', COLORS[cfg.colors[p]].c);
+    document.getElementById('pc' + p).style.setProperty('--pc', liveryFor(p).c);
     const inp = document.getElementById('name' + p);
     inp.value = isDefaultName(cfg.names[p] || '') ? '' : cfg.names[p];
     inp.oninput = () => { cfg.names[p] = inp.value.trim() || 'Player ' + (p + 1); store.set('names', cfg.names); scheduleClaim(); if (p === 0 && NET.joined) netTrack();
@@ -4621,6 +4746,46 @@ function showRecords() {
   show('recordsOv', true);
 }
 
+// ---------------------------------------------------------------- livery editor
+let livEdit = null;       // { p, l: livery being edited (side '' = use the player's name), kart }
+function openLivery(p) {
+  const saved = savedLiveries()[p], l = liveryFor(p);
+  if (!saved || !saved.side) l.side = '';
+  livEdit = { p, l, kart: !!TRACK.kart };
+  document.getElementById('livWho').textContent = (isDefaultName(cfg.names[p] || '') ? 'PLAYER ' + (p + 1) : cfg.names[p].toUpperCase());
+  livUI(); show('liveryOv', true);
+}
+function livCol() { const l = cleanLivery(livEdit.l); if (!l.side) l.side = cleanLivery({ side: isDefaultName(cfg.names[livEdit.p] || '') ? '' : cfg.names[livEdit.p] }).side; return l; }
+function livUI(onlyPreview) {
+  const $ = id => document.getElementById(id), L = livEdit.l;
+  if (!onlyPreview) {
+    $('livC').value = L.c; $('livD').value = L.d; $('livA').value = L.a; $('livH').value = L.helmet; $('livNum').value = L.num;
+    $('livSide').value = L.side; $('livSide').placeholder = cleanLivery({ side: cfg.names[livEdit.p] }).side || 'NAME';
+    const seg = (id, opts, cur, set) => { const el = $(id); el.innerHTML = ''; opts.forEach(([v, label]) => { const b = document.createElement('button'); b.textContent = label; if (v === cur) b.className = 'sel'; b.onclick = () => { set(v); livUI(); }; el.appendChild(b); }); };
+    seg('livPat', LIV_PATTERNS, L.pattern, v => L.pattern = v);
+    seg('livCar', [[false, 'F1 car'], [true, 'Kart']], livEdit.kart, v => livEdit.kart = v);
+    const box = $('livPresets'); box.innerHTML = '';
+    COLORS.forEach(c => { const d = document.createElement('div'); d.className = 'sw'; d.style.background = `linear-gradient(135deg, ${c.c} 60%, ${c.d} 60%)`; d.onclick = () => { Object.assign(L, { c: c.c, d: c.d, helmet: c.helmet }); livUI(); }; box.appendChild(d); });
+  }
+  if (GFX && GFX.preview) GFX.preview($('livCanvas'), livCol(), livEdit.kart);
+}
+function closeLivery(save) {
+  if (!livEdit) return;
+  if (save) {
+    const lv = savedLiveries(); lv[livEdit.p] = cleanLivery(livEdit.l); store.set('livery', lv);
+    if (livEdit.p === 0 && NET.joined) netTrack();
+  }
+  if (GFX && GFX.preview) GFX.preview(null);
+  livEdit = null; show('liveryOv', false); refreshMenu();
+}
+for (const p of [0, 1]) document.getElementById('livBtn' + p).onclick = e => { e.stopPropagation(); openLivery(p); };
+for (const [id, key] of [['livC', 'c'], ['livD', 'd'], ['livA', 'a'], ['livH', 'helmet']]) document.getElementById(id).oninput = e => { if (livEdit) { livEdit.l[key] = e.target.value; livUI(true); } };
+document.getElementById('livNum').oninput = e => { if (livEdit) { livEdit.l.num = e.target.value; livUI(true); } };
+document.getElementById('livSide').oninput = e => { if (livEdit) { livEdit.l.side = e.target.value; livUI(true); } };
+document.getElementById('livSave').onclick = () => closeLivery(true);
+document.getElementById('livCancel').onclick = () => closeLivery(false);
+document.getElementById('livReset').onclick = () => { if (!livEdit) return; const lv = savedLiveries(); lv[livEdit.p] = null; store.set('livery', lv); livEdit.l = liveryFor(livEdit.p); livEdit.l.side = ''; livUI(); };
+
 // ---------------------------------------------------------------- online rooms (live multiplayer, phase 1)
 // One player per browser, up to 6. A room is a Supabase Realtime channel (broadcast + presence over a single
 // websocket, spoken directly – no extra library). Every browser drives its own car with the normal physics and
@@ -4638,7 +4803,7 @@ function netCast(event, payload) {
 }
 function netTrack() {        // presence: who's in the room (the server drops you when the connection goes)
   netRaw({ topic: netTopic(), event: 'presence', ref: String(++NET.ref), join_ref: NET.joinRef,
-    payload: { type: 'presence', event: 'track', payload: { name: (cfg.names[0] || '').trim().slice(0, 14), col: cfg.colors[0], host: NET.host, t: NET.t0 } } });
+    payload: { type: 'presence', event: 'track', payload: { name: (cfg.names[0] || '').trim().slice(0, 14), col: cfg.colors[0], liv: liveryFor(0), host: NET.host, t: NET.t0 } } });
 }
 const netPeople = () => Object.entries(NET.pres).map(([id, m]) => ({ id, ...m })).sort((a, b) => (b.host - a.host) || (a.t - b.t));
 function netOpen(room, host) {
@@ -4729,7 +4894,7 @@ function netCastIn(ev, d) {
 }
 function netStartRace() {    // host: everyone in the room races now
   if (!NET.host || !NET.joined) return;
-  const order = netPeople().slice(0, NET_MAX).map(q => ({ id: q.id, name: q.name, col: q.col }));
+  const order = netPeople().slice(0, NET_MAX).map(q => ({ id: q.id, name: q.name, col: q.col, liv: q.liv }));
   if (NET.setup.mode !== 'hot') order.sort(() => Math.random() - 0.5);       // random grid
   const d = { r: Math.random().toString(36).slice(2, 8), ...NET.setup, order };
   netCast('start', d); netBegin(d);
@@ -4805,7 +4970,7 @@ function netUI() {
   if (!inRoom) return;
   $('netRoom').textContent = NET.room;
   const ppl = netPeople();
-  $('netPlayers').innerHTML = ppl.map(q => `<span class="netp"><span class="chip" style="background:${(COLORS[q.col] || COLORS[0]).c}"></span>${esc(q.name || '?')}` +
+  $('netPlayers').innerHTML = ppl.map(q => `<span class="netp"><span class="chip" style="background:${cleanLivery(q.liv || COLORS[q.col], COLORS[q.col] || COLORS[0]).c}"></span>${esc(q.name || '?')}` +
     `${q.host ? ' <small>HOST</small>' : ''}${q.id === NET.me ? ' <small>(you)</small>' : ''}</span>`).join('') || '<div class="sub" style="margin-top:10px">Connecting…</div>';
   const S = NET.setup, box = $('netSetup');
   if (!S) { box.innerHTML = '<div class="sub" style="margin-top:12px">Waiting for the host…</div>'; return; }
