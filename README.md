@@ -33,7 +33,6 @@ Karts have no ERS or DRS.
   - **Weather** can change every lap: dry, rain (less grip) or a glitter storm
 - **CPU drivers**: add 1, 3 or 5 computer opponents to a race or Chaos, in 1- or 2-player mode. They pass slower cars, use items in Chaos, and their laps don't count for records. *Easy* drives about at the seeded record pace, *Medium* a bit faster, and *Hard* about as fast as the quickest human laps so far.
 - **🏆 Cup** (next to the tracks on the menu): race all five tracks in a row, Spa → Red Bull Ring → Monza → Silverstone → Algarve, with Race or Chaos rules. Points per race are 10-8-6-5-4-3-2, the same CPU drivers race the whole cup, and the final result has a podium.
-- **Handling**: *F1* (more grip and braking in slow corners, and you can over-rotate the car) or *Arcade* (forgiving)
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
 
 ## Controls
@@ -63,18 +62,18 @@ You can also use gamepads (right trigger to accelerate, left trigger to brake, s
 
 ## Track records
 
-The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the F1 and Arcade leaderboards (each driver's best valid lap, with the gap to the leader). They start with Claude's hot laps as the times to beat:
+The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the leaderboard (each driver's best valid lap, with the gap to the leader). They start with Claude's hot laps as the times to beat:
 
-| Circuit | Arcade | F1 |
-|---|---|---|
-| Algarve | 1:31.258 | 1:22.833 |
-| Spa-Francorchamps | 1:58.500 | 1:47.958 |
-| Monza | 1:26.975 | 1:22.258 |
-| Red Bull Ring | 1:11.033 | 1:05.583 |
-| Silverstone | 1:41.775 | 1:33.775 |
-| Chaves (karts) | 0:35.858 | 0:33.575 |
-| Graz (karts) | 0:25.717 | 0:23.733 |
-| Graz Airport (karts) | 0:52.425 | 0:51.092 |
+| Circuit | Lap |
+|---|---|
+| Algarve | 1:22.833 |
+| Spa-Francorchamps | 1:47.958 |
+| Monza | 1:22.258 |
+| Red Bull Ring | 1:05.583 |
+| Silverstone | 1:33.775 |
+| Chaves (karts) | 0:33.575 |
+| Graz (karts) | 0:23.733 |
+| Graz Airport (karts) | 0:51.092 |
 
 **The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded.
 
