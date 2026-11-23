@@ -2635,6 +2635,64 @@ function buildGfx() {
       scene.add(grp);
       break;
     }
+    // Filipe's croqueta: a snack stand by Curva do Zazo where Filipe eats a croqueta… and it doesn't stay down
+    jokeAnims = [];
+    {
+      const l1 = T.labels[0]; let spot = null, i0 = 0;
+      for (let d = 8; d < 70 && !spot; d += 3) for (const sg of [1, -1]) for (const si of [0, 1]) { if (spot) break; const i = (l1.i + sg * d + N) % N, q = clearAt(i, si, 3.2, 5.5); if (q) { spot = q; i0 = i; } }
+      if (spot) {
+        const L = c => new THREE.MeshLambertMaterial({ color: c });
+        const grp = new THREE.Group(); grp.position.set(spot.x, HT[i0], spot.z); grp.rotation.y = -Math.atan2(Y[i0] - spot.z, X[i0] - spot.x); scene.add(grp);   // +x faces the track
+        const box = (w, h, d, col, x, y, z, par = grp) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), L(col)); m.position.set(x, y, z); par.add(m); return m; };
+        box(1.2, 1.1, 2.8, '#f4f4f4', -1.7, 0.55, 0); box(1.25, 0.25, 2.85, '#e63946', -1.7, 1.12, 0);          // counter
+        for (const z of [-1.35, 1.35]) box(0.08, 2.3, 0.08, '#888', -2.25, 1.15, z);
+        for (let k = 0; k < 6; k++) box(1.7, 0.12, 0.5, k % 2 ? '#f4f4f4' : '#e63946', -1.75, 2.35, -1.25 + k * 0.5); // striped awning
+        const croqGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.28, 8); croqGeo.rotateZ(Math.PI / 2);
+        for (let k = 0; k < 6; k++) { const c = new THREE.Mesh(croqGeo, L('#b5651d')); c.position.set(-1.55 + (k % 2) * 0.18, 1.28, -0.5 + k * 0.2); grp.add(c); }   // croquetas on the counter
+        // Filipe, side-on to the track so you see him lean over
+        const fil = new THREE.Group(); fil.position.set(-0.4, 0, 2.1); fil.rotation.y = -Math.PI / 2; fil.scale.setScalar(1.4); grp.add(fil);
+        for (const z of [-0.12, 0.12]) box(0.2, 0.82, 0.24, '#1b1f2a', 0, 0.41, z, fil);
+        const upper = new THREE.Group(); upper.position.y = 0.82; fil.add(upper);
+        box(0.5, 0.72, 0.36, '#ff6fa3', 0, 0.36, 0, upper);
+        const skin = L('#e8c3a0'), head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), skin); head.position.set(0, 0.92, 0); upper.add(head);
+        const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2.2), L('#3b2a1e')); hair.position.copy(head.position); upper.add(hair);
+        const armL = new THREE.Group(); armL.position.set(0, 0.66, -0.33); upper.add(armL); box(0.14, 0.64, 0.14, '#ff6fa3', 0, -0.31, 0, armL);
+        const armR = new THREE.Group(); armR.position.set(0, 0.66, 0.33); upper.add(armR); box(0.14, 0.64, 0.14, '#ff6fa3', 0, -0.31, 0, armR);
+        const croq = new THREE.Mesh(croqGeo, L('#b5651d')); croq.position.set(0.08, -0.66, 0); armR.add(croq);
+        const mouth = new THREE.Object3D(); mouth.position.set(0.18, 0.86, 0); upper.add(mouth);
+        // sick puddle in front of him, and the particles that fill it
+        const pudMat = new THREE.MeshLambertMaterial({ color: '#8bc34a', transparent: true, opacity: 0.85 }), pud = new THREE.Mesh(new THREE.CircleGeometry(1, 20), pudMat);
+        pud.rotation.x = -Math.PI / 2; pud.position.set(-0.4, 0.04, 3.35); pud.scale.setScalar(0.01); grp.add(pud);
+        const gMat = L('#9ccc3c'), blobs = [];
+        for (let k = 0; k < 26; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), gMat); b.visible = false; scene.add(b); blobs.push({ b, v: new THREE.Vector3(), life: 0 }); }
+        const wp = new THREE.Vector3(), fwd = new THREE.Vector3(), q = new THREE.Quaternion();
+        const p0 = new THREE.Vector3(-1.7, 0, 0); grp.updateMatrixWorld(); grp.localToWorld(p0);
+        sign(['FILIPE + CROQUETA = 🤢', 'NUNCA MAIS', '#9be15d'], p0.x, p0.z, HT[i0] + 1.2, 3.4);   // on top of the stand's awning
+        const green = new THREE.Color('#9ccc65'), skinC = new THREE.Color('#e8c3a0');
+        let t = Math.random() * 7, spawn = 0;
+        jokeAnims.push(dt => {
+          t = (t + dt) % 7.5;
+          let arm = 0, bend = 0, sick = 0;
+          if (t < 2.4) { const bite = (t % 0.8) / 0.8; arm = Math.sin(Math.min(1, bite * 1.6) * Math.PI) * 2.3; croq.scale.setScalar(1 - Math.floor(t / 0.8) * 0.25); croq.visible = true; }
+          else if (t < 3.2) { croq.visible = false; sick = (t - 2.4) / 0.8; bend = Math.sin(t * 30) * 0.05; }
+          else if (t < 5.4) { sick = 1; bend = 0.75; }
+          else { sick = Math.max(0, 1 - (t - 5.4) / 1.2); bend = 0.75 * Math.max(0, 1 - (t - 5.4) / 0.6); croq.visible = t > 6.4; croq.scale.setScalar(1); }
+          armR.rotation.z = arm; armL.rotation.z = bend * 0.6; upper.rotation.z = -bend;
+          skin.color.copy(skinC).lerp(green, sick * 0.8);
+          // throwing up: a stream from the mouth into the puddle
+          if (t > 3.3 && t < 5.3 && (spawn -= dt) <= 0) {
+            spawn = 0.05; const bl = blobs.find(x => x.life <= 0);
+            if (bl) { mouth.getWorldPosition(wp); fil.getWorldQuaternion(q); fwd.set(1, 0, 0).applyQuaternion(q); bl.b.position.copy(wp); bl.v.copy(fwd).multiplyScalar(1.6 + Math.random() * 0.8); bl.v.y = 0.6 + Math.random() * 0.6; bl.life = 1.2; bl.b.visible = true; }
+          }
+          for (const bl of blobs) if (bl.life > 0) {
+            bl.life -= dt; bl.v.y -= 9.8 * dt; bl.b.position.addScaledVector(bl.v, dt);
+            if (bl.b.position.y < HT[i0] + 0.05 || bl.life <= 0) { bl.life = 0; bl.b.visible = false; }
+          }
+          const ps = t < 3.4 ? 0 : t < 5.4 ? (t - 3.4) / 2 : t < 6.6 ? 1 : 1 - (t - 6.6) / 0.9;   // puddle grows, then soaks away
+          pud.scale.setScalar(Math.max(0.01, ps * 0.9)); pudMat.opacity = 0.85 * Math.min(1, ps * 3);
+        });
+      }
+    }
   }
   if (TRACK.brand && T.wallW) {
     const postMat = new THREE.MeshLambertMaterial({ color: '#cfd6de' });
@@ -2850,7 +2908,7 @@ function buildGfx() {
   }
   for (const k of keepers) scene.add(k);
   carMeshes = []; ghostMesh = null; chaosObjs = []; hazMesh = new Map(); skidHead = 0; skidCount = 0; skidGeo.setDrawRange(0, 0);
-  planes = []; planeT = 1; taxiMesh = new Map(); if (!TRACK.airport) airportLights = [];
+  planes = []; planeT = 1; taxiMesh = new Map(); if (!TRACK.airport) airportLights = []; if (!TRACK.jokes) jokeAnims = [];
   leisure = TRACK.leisure ? buildLeisure() : null;
   airship = TRACK.airship && TRACK.schlossberg ? buildAirship() : null;
   demo.s = 0; demo.cam.station = -1; demo.cam.snap = true;
@@ -3139,7 +3197,7 @@ function buildGfx() {
 
   // ---- Graz winter & sports scenery, all animated: skiers and a chairlift on a snowy mountain,
   // cross-country skiers on a trail, skaters on a frozen lake, and a football match (a Graz derby)
-  let leisure = null, airship = null, airportLights = [], taxiMesh = new Map();
+  let leisure = null, airship = null, airportLights = [], taxiMesh = new Map(), jokeAnims = [];
   function syncAirport() {
     airportLights.forEach((l, k) => { const red = crossRed(k); l.red.material.color.set(red ? '#ff2020' : '#330000'); l.green.material.color.set(red ? '#002200' : '#20ff50'); });
     const alive = new Set(taxis);
@@ -3721,6 +3779,7 @@ function buildGfx() {
     syncPlanes(Math.min(dt, 0.1));
     if (leisure && !paused) leisure.forEach(f => f(Math.min(dt, 0.1)));
     if (TRACK.airport) syncAirport();
+    if (!paused && state !== 'replay') jokeAnims.forEach(f => f(Math.min(dt, 0.1)));
     if (airship && !paused) airship(Math.min(dt, 0.1));
     if (state === 'menu') {
       demo.s = (demo.s + dt * 46) % T.L;
