@@ -232,6 +232,7 @@
         <div><b>DRS</b> – from lap 2, <span id="drsTip">cross the detection line</span> less than 1 s behind and the rear wing opens on the next straight. In single player it opens in every DRS zone.</div>
         <div><b>Slipstream</b> – sit right behind your rival for a tow.</div>
         <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run. <kbd>T</kbd> shows the lap telemetry.</div>
+        <div><b>🎈 Battle</b> – no track: a round arena where everyone has 3 balloons. Items from the ? boxes pop them – oil, a loose tyre (it bounces off the walls), a brick wall, or ramming someone with your turbo on. Lose all three and you're out; last car with balloons wins (or the most after 3 minutes).</div>
         <div><b>📅 Daily</b> (1 player) – one track and one condition a day (rain, worn tyres, no ERS, no DRS, full tanks, storm or glitter), the same for everyone, as a hot lap with its own leaderboard: the "📅 Today" tab in Records. A new one every day at 00:00 UTC.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
@@ -550,6 +551,15 @@ const TRACKS = {
     walls: true, monaco: true, dims: { half: 5.2, kerb: 6.0, runoff: 6.6, wall: 7.4, sp: 2 },   // barriers right at the edge of the road, all the way round
     theme: { sky: '#8ec6f2', fog: '#c2dcf0', fogNear: 450, fogFar: 2600, hemiGround: '#6b6a55', grass: ['#9a978e', '#a19e95'], outerNear: '#a8977a', outerFar: '#5e7c4a', ground: '#5e7c4a',
       trees: 'broadleaf', treeCount: 260, hills: 150, bumps: 0, margin: 700, tyres: ['#b9bdc3', '#c6c9ce', '#b9bdc3'], kerb: ['#f4f4f4', '#d61f26'] },
+  },
+  // Battle arena: a 150 m disc. Its "centreline" is a 36 m circle with a 38 m half-width, so the road covers the whole floor;
+  // the real limits are the round outer wall and the pillars (arenaWall). Not in TRACK_ORDER: Battle mode loads it.
+  arena: {
+    id: 'arena', title: 'BATTLE ARENA', full: 'Brick Prix Battle Arena', place: 'Balloon battles', km: '150 m across', turns: 0, recordKey: 'record.arena', kart: true, arena: true,
+    raw: Array.from({ length: 72 }, (_, k) => [36 * Math.cos(k * Math.PI / 36), 36 * Math.sin(k * Math.PI / 36)]), startLine: [36, 0], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [],
+    drsText: 'no DRS in the arena', dims: { half: 38, kerb: 38.6, runoff: 39, wall: 39.2, sp: 1 },
+    theme: { sky: '#8fc4f0', fog: '#c6dbee', fogNear: 260, fogFar: 1100, hemiGround: '#5a6b3a', grass: ['#5c8f45', '#64974a'], outerNear: '#64974a', outerFar: '#7a9a55', ground: '#6f8f4f',
+      trees: 'broadleaf', treeCount: 60, hills: 0, bumps: 0, margin: 220, kerb: ['#ffd23f', '#e8202f'], tyres: ['#e8202f', '#f4f4f4', '#2f62ff'] },
   },
   chaves: {
     id: 'chaves', title: 'CHAVES', full: 'Kartódromo de Chaves', place: 'Chaves, Portugal', km: '0.59 km', turns: 0, recordKey: 'record.chaves', kart: true,
@@ -943,6 +953,11 @@ function buildTerrainHeights() {
       h = th * (1 - t) + h * t;
       if (g.d < RUNOFF + 3) h -= 0.3;
       zone[k] = g.d < WALL + 1.5 ? 1 : 0;
+    }
+    if (TRACK.walls && dmin < 70) {       // street circuit: the hillside never rises over any road nearby, only gently beyond its walls
+      let cap = Infinity;
+      for (let i = 0; i < T.N; i += 3) { const dx = T.X[i] - x, dz = T.Y[i] - z; if (dx > 70 || dx < -70 || dz > 70 || dz < -70) continue; const d = Math.hypot(dx, dz); if (d < 70) cap = Math.min(cap, T.HT[i] - 0.5 + Math.max(0, d - (WALL + 3)) * 0.35); }
+      h = Math.min(h, cap);
     }
     if (T.sea && (!g || g.d > WALL + 3) && inPoly(x, z, T.sea)) h = Math.min(h, -4);    // the harbour and the sea
     H[k] = h; far[k] = dmin;
@@ -1422,7 +1437,9 @@ function redStop(c) {
   });
   return v;
 }
-function standings() {                       // finished cars by place, then everyone else by progress
+const battleOrder = (a, b) => (a.out !== b.out) ? (a.out ? 1 : -1) : a.out ? b.outAt - a.outAt : (b.balloons - a.balloons) || ((b.hits || 0) - (a.hits || 0));
+function standings() {                       // finished cars by place, then everyone else by progress (battle: balloons left)
+  if (isBattle()) return [...cars].sort(battleOrder);
   return [...cars].sort((a, b) => (a.finished && b.finished) ? a.place - b.place : a.finished ? -1 : b.finished ? 1 : b.prog - a.prog);
 }
 function say(c, text, col = '#fff', dur = 2.2) { c.msg = text; c.msgCol = col; c.msgT = dur; }
@@ -1439,7 +1456,8 @@ const isSolo = () => humans().length === 1;
 const hotMode = () => cfg.mode === 'hot' || cfg.mode === 'daily';                    // Daily = a hot lap with the day's condition
 const isHot = () => hotMode() && cars.filter(c => !c.remote).length === 1;   // online: the others' cars don't count
 const isDaily = () => cfg.mode === 'daily' && isHot() && !!dailyNow;
-const isChaos = () => cfg.mode === 'chaos' && cars.length > 0 && state !== 'menu';
+const isChaos = () => (cfg.mode === 'chaos' || cfg.mode === 'battle') && cars.length > 0 && state !== 'menu';
+const isBattle = () => cfg.mode === 'battle' && !!TRACK.arena && cars.length > 0 && state !== 'menu';
 
 // ---------------------------------------------------------------- chaos mode
 // Mystery boxes in rows of three on the straights before big braking zones; items are rolled with
@@ -1521,7 +1539,8 @@ function lateralOf(c) { const i = c.ti; return (c.x - T.X[i]) * T.NX[i] + (c.y -
 function pickItem(c) {
   const others = cars.filter(o => o !== c && !o.finished);
   let table;
-  if (!others.length) table = [['turbo', 6], ['triple', 3], ['phantom', 1]];
+  if (TRACK.arena) table = [['turbo', 16], ['triple', 9], ['oil', 16], ['tyre', 24], ['wall', 13], ['shower', 8], ['phantom', 9]];   // battle: things that pop balloons
+  else if (!others.length) table = [['turbo', 6], ['triple', 3], ['phantom', 1]];
   else {
     const leaderCar = others.reduce((a, b) => a.prog > b.prog ? a : b);
     const leading = c.prog >= leaderCar.prog;
@@ -1533,7 +1552,8 @@ function pickItem(c) {
   for (const [it, w] of table) { r -= w; if (r <= 0) return it; }
   return table[0][0];
 }
-function showerTarget(c) {      // the car just ahead, or (if you lead) the one just behind
+function showerTarget(c) {      // the car just ahead, or (if you lead) the one just behind (battle: the nearest)
+  if (TRACK.arena) { let best = null, bd = Infinity; for (const o of cars) { if (o === c || o.finished) continue; const d = Math.hypot(o.x - c.x, o.y - c.y); if (d < bd) { bd = d; best = o; } } return best; }
   let best = null, bd = Infinity;
   for (const o of cars) {
     if (o === c || o.finished) continue;
@@ -1554,6 +1574,10 @@ function useItem(c) {
     if (it === 'triple' && --c.itemCount > 0) return;
   } else if (it === 'oil') {
     hazards.push({ type: 'oil', x: c.x - Math.cos(c.h) * 4.5 * KS, y: c.y - Math.sin(c.h) * 4.5 * KS, alt: c.alt, owner: c, age: 0, life: 30 });
+  } else if (it === 'tyre' && TRACK.arena) {         // battle: rolls straight ahead and bounces off the walls
+    const v = Math.max(26, Math.abs(c.vf) + 12);
+    hazards.push({ type: 'tyre', x: c.x + Math.cos(c.h) * 2.5, y: c.y + Math.sin(c.h) * 2.5, vx: Math.cos(c.h) * v, vy: Math.sin(c.h) * v, alt: c.alt, h: c.h, owner: c, age: 0, life: 5, roll: 0, free: true });
+    AU.beep(300, 0.1, 0.1);
   } else if (it === 'tyre') {
     hazards.push({ type: 'tyre', s: c.s + 4 * KS, lat: clamp(lateralOf(c), -6 * TW, 6 * TW), speed: Math.max(90 * VEH.vs, Math.abs(c.vf) + 30 * VEH.vs), owner: c, age: 0, life: 6, roll: 0 });
     AU.beep(300, 0.1, 0.1);
@@ -1620,6 +1644,7 @@ function airStep(c, dt) {
   }
 }
 function chaosCar(c, inp, dt) {           // per car, every physics step
+  if (c.out) return;
   if (inp.boost && !c.prevBoost) useItem(c);
   c.prevBoost = inp.boost;
   for (const b of boxes) {
@@ -1671,7 +1696,14 @@ function chaosWorld(dt) {                 // boxes respawn, projectiles move, ha
   for (const b of boxes) if (!b.active && (b.respawn -= dt) <= 0) b.active = true;
   for (const h of hazards) {
     h.age += dt; h.life -= dt;
-    if (h.type === 'tyre') {
+    if (h.type === 'tyre' && h.free) {
+      h.x += h.vx * dt; h.y += h.vy * dt; h.roll += Math.hypot(h.vx, h.vy) * dt / 0.45; h.h = Math.atan2(h.vy, h.vx); h.alt = groundAt(h.x, h.y);
+      for (const [px, py, pr] of arenaObstacles()) {
+        const dx = h.x - px, dy = h.y - py, d = Math.hypot(dx, dy), out = pr < 0;          // pr < 0: the outer wall (keep inside)
+        const lim = Math.abs(pr) + (out ? -0.4 : 0.4);
+        if (out ? d > lim : d < lim) { const nx = dx / d, ny = dy / d, vn = h.vx * nx + h.vy * ny; h.vx -= 2 * vn * nx; h.vy -= 2 * vn * ny; h.x = px + nx * lim; h.y = py + ny * lim; }
+      }
+    } else if (h.type === 'tyre') {
       h.s += h.speed * dt; h.lat += clamp(-h.lat, -1.5 * TW * dt, 1.5 * TW * dt); h.roll += h.speed * dt / 0.45;
       const p = sToPoint(h.s, h.lat); h.x = p.x; h.y = p.y; h.alt = p.alt; h.h = p.h;
     } else if (h.type === 'sc') {
@@ -1688,7 +1720,7 @@ function chaosWorld(dt) {                 // boxes respawn, projectiles move, ha
     if (h.type !== 'oil' && h.type !== 'tyre' && h.type !== 'wall') continue;
     for (const c of cars) {
       if (c.ghost > 0 || c.air || (c === h.owner && h.age < (h.type === 'tyre' ? 0.5 : 1.5))) continue;
-      if (hazardHits(h, c)) { hitCar(c, h); h.life = 0; break; }
+      if (hazardHits(h, c)) { hitCar(c, h); if (isBattle()) popBalloon(c, h.owner); h.life = 0; break; }
     }
   }
   hazards = hazards.filter(h => h.life > 0);
@@ -1777,7 +1809,7 @@ function startRace(rematch) {
   const prevCam = state === 'menu' ? [] : humans().map(c => c.camMode);   // a restart keeps each driver's camera
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
   hs.forEach((h, k) => { if (prevCam[k]) h.camMode = prevCam[k]; });
-  const nCpu = NET.race || (solo && hotMode()) ? 0 : clamp(cfg.cpu | 0, 0, 5);
+  const nCpu = NET.race || (solo && hotMode()) ? 0 : cfg.mode === 'battle' ? clamp(Math.max(cfg.cpu | 0, solo ? 1 : 0), 0, 5) : clamp(cfg.cpu | 0, 0, 5);
   let names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5);
   const cpus = [];
   if (TRACK.jokes) {            // the local legends race at Chaves – unless one of them is at the wheel
@@ -1799,12 +1831,15 @@ function startRace(rematch) {
     const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
     // Chaos: humans start at the back (more boxes, better items); Race: random grid
     const grid = cfg.mode === 'chaos' ? shuffle(cpus).concat(shuffle(hs)) : shuffle(cars);
+    if (TRACK.arena) grid.forEach((c, slot) => placeArena(c, slot, grid.length));
+    else
     grid.forEach((c, slot) => placeCar(c, slot));
   }
   parts = []; finishOrder = []; resultsAt = 0;
   taxis = []; taxiT = 3; rec = { frames: [], next: 0 };
   hazards = []; boxes = []; pads = []; ramps = []; weather = 'dry'; weatherLap = 0; wxMsgT = 0;
-  if (cfg.mode === 'chaos') { placeBoxes(); placePads(); placeRamps(); weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
+  if (cfg.mode === 'chaos' || cfg.mode === 'battle') { if (TRACK.arena) arenaProps(); else { placeBoxes(); placePads(); placeRamps(); } weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
+  if (TRACK.arena) cars.forEach(c => { c.balloons = 3; c.hits = 0; c.out = false; c.outAt = 0; c.popT = 0; });
   dailyNow = cfg.mode === 'daily' && solo && !NET.race ? dailyToday() : null;
   if (dailyNow && dailyNow.track !== TRACK.id) dailyNow = null;          // (only on the day's track)
   if (dailyNow) weather = dailyNow.cond.rain ? 'rain' : dailyNow.cond.glitter ? 'glitter' : 'dry';
@@ -1835,8 +1870,13 @@ function startRace(rematch) {
 // Race all five tracks in a row (Race or Chaos rules) for points; the same CPU drivers all cup long.
 const CUP_TRACKS = ['spa', 'rbr', 'monza', 'silverstone', 'algarve'], CUP_PTS = [10, 8, 6, 5, 4, 3, 2];
 let cup = null;          // { race, names, table: [{ id, name, col, cpu, pts, last, places }], done }
-const cupOn = () => cfg.cup && !(cfg.players === 1 && hotMode());
+const cupOn = () => cfg.cup && cfg.mode !== 'battle' && !(cfg.players === 1 && hotMode());
 function startFromMenu() {
+  if (cfg.mode === 'battle') {                                           // battles are in the arena
+    cup = null;
+    if (!TRACK.arena) { if (!namesReady()) return; document.getElementById('startBtn').textContent = 'Building arena…'; setTimeout(() => { loadTrackData('arena'); if (GFX) GFX.buildScene(); startRace(false); }, 30); return; }
+    startRace(false); return;
+  }
   if (cfg.players === 1 && cfg.mode === 'daily') {                       // make sure we're on today's track
     const D = dailyToday(); cup = null;
     if (TRACK.id !== D.track) { if (!namesReady()) return; document.getElementById('startBtn').textContent = 'Building track…'; setTimeout(() => { loadTrackData(D.track); if (GFX) GFX.buildScene(); startRace(false); }, 30); return; }
@@ -2224,6 +2264,7 @@ function physics(c, inp, dt, locked) {
 
   const nr = nearestGlobal(c.x, c.y);
   if (!nr) { c.x = c.px; c.y = c.py; c.vx *= -0.2; c.vy *= -0.2; }
+  else if (TRACK.arena) arenaWall(c);
   else if (TRACK.kart || TRACK.walls) kartWall(c);
   else if (nr.d > WALL - 1.1) {
     const nx = (c.x - nr.px) / nr.d, ny = (c.y - nr.py) / nr.d;
@@ -2272,6 +2313,10 @@ function kartWall(c) {
   }
 }
 function trackLocal(c) {
+  if (TRACK.arena) {           // the arena floor: any point is "on track"; just keep a nearby sample for cameras and the minimap
+    const g = nearestGlobal(c.x, c.y); if (g) c.ti = g.j; c.localD = 0;
+    return g ? (T.S[g.j] + g.t * segLen(g.j)) % T.L : c.s;
+  }
   let best = 1e18, bi = c.ti;
   for (let k = -15; k <= 45; k++) {
     const i = (c.ti + k + T.N) % T.N, dd = (T.X[i] - c.x) ** 2 + (T.Y[i] - c.y) ** 2;
@@ -2304,6 +2349,7 @@ function collideCars(a, b) {
       a.vx -= j * dx; a.vy -= j * dy; b.vx += j * dx; b.vy += j * dy;
       const ta = Math.sign(oa) * (Math.cos(a.h) * dy - Math.sin(a.h) * dx), tb = Math.sign(ob) * (Math.cos(b.h) * dy - Math.sin(b.h) * dx);
       a.h -= ta * j * 0.012; b.h += tb * j * 0.012;
+      if (isBattle() && j > 2.5) { if (a.turboT > 0 && b.turboT <= 0) popBalloon(b, a); else if (b.turboT > 0 && a.turboT <= 0) popBalloon(a, b); }   // turbo ram
       if (j > 2) { AU.thud(j / 20); for (let k = 0; k < 8; k++) spark((ax + bx) / 2, (ay + by) / 2, a.alt + 0.5); a.shake = b.shake = Math.min(1, j / 15); }
     }
   }
@@ -2336,7 +2382,8 @@ function step(dt) {
       AU.cheer(1);
     } else locked = true;
   }
-  const inputs = cars.map((c, i) => c.cpu ? cpuInput(c) : c.remote ? null : readInput(i));
+  const NOIN = { throttle: 0, brake: 0.4, steer: 0, boost: false };
+  const inputs = cars.map((c, i) => c.out ? NOIN : c.cpu ? (TRACK.arena ? battleCpu(c) : cpuInput(c)) : c.remote ? null : readInput(i));
   cars.forEach((c, i) => {
     if (c.remote) { netRemote(c, dt); return; }       // online: another player's car, drawn from their updates
     if (c.air) airStep(c, dt); else physics(c, inputs[i], dt, locked);
@@ -2353,15 +2400,15 @@ function step(dt) {
       c.off = null;
       if (!c.finished && !isChaos() && !c.cpu) { c.lapInvalid = true; strike(c, 'CUT – PUT BACK ON TRACK'); }
     }
-    if (!c.finished && !c.cpu) trackLimits(c, ds, dt);
+    if (!c.finished && !c.cpu && !TRACK.arena) trackLimits(c, ds, dt);
     if (TRACK.airport && !c.finished) redLight(c, s0, s1);
     const ti = c.ti, sp = Math.hypot(c.vx, c.vy);
-    if (sp > 6 && (c.vx * T.TX[ti] + c.vy * T.TY[ti]) < -0.5 * sp) { c.wrongT += dt; if (c.wrongT > 1) say(c, 'WRONG WAY', '#ff5050', 0.3); }
+    if (!TRACK.arena && sp > 6 && (c.vx * T.TX[ti] + c.vy * T.TY[ti]) < -0.5 * sp) { c.wrongT += dt; if (c.wrongT > 1) say(c, 'WRONG WAY', '#ff5050', 0.3); }
     else c.wrongT = 0;
 
     if (!c.hist.length || c.prog > c.hist[c.hist.length - 1].p + 2) c.hist.push({ p: c.prog, t: simTime });
 
-    if (c.finished) return;
+    if (c.finished || TRACK.arena) return;   // (no laps in the arena)
     if (!c.timing && c.prog >= 0) {          // hot lap: the timed lap starts at the line
       c.timing = true; c.lapStart = c.sectorStart = simTime; c.lapInvalid = false; c.curSec = []; c.secIdx = 0; c.ers = 1; lateLimits(c);
       c.curTrace = []; c.curBrk = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
@@ -2415,11 +2462,12 @@ function step(dt) {
   cars.forEach(c => {
     if (c.ghost > 0) c.ghost -= dt; c.msgT -= dt; c.shake = Math.max(0, c.shake - dt * 2.5);
     if (c.turboT > 0) c.turboT -= dt; if (c.spinT > 0) c.spinT -= dt; if (c.scT > 0) c.scT -= dt;
-    if (c.showerT > 0) c.showerT -= dt; if (c.phantomT > 0) c.phantomT -= dt; if (c.padT > 0) c.padT -= dt;
+    if (c.showerT > 0) c.showerT -= dt; if (c.phantomT > 0) c.phantomT -= dt; if (c.padT > 0) c.padT -= dt; if (c.popT > 0) c.popT -= dt;
   });
   if (isChaos() && state === 'race') chaosWorld(dt);
+  if (isBattle() && state === 'race') battleStep(dt);
   // once every human has finished, don't wait forever for a CPU that's stuck or a lap down
-  if (state === 'race' && !resultsAt && finishOrder.length && humans().every(h => h.finished)) resultsAt = simTime + (NET.race ? 40 : 8);
+  if (state === 'race' && !resultsAt && finishOrder.length && humans().every(h => h.finished) && !TRACK.arena) resultsAt = simTime + (NET.race ? 40 : 8);
   if (NET.race && state === 'race' && humans().every(h => h.finished) && cars.every(c => c.finished || c.left)) resultsAt = Math.min(resultsAt || Infinity, simTime + 3);
   if (state === 'race' && resultsAt && simTime >= resultsAt) showResults();
   if (state !== 'menu') spawnFx(dt);
@@ -2808,8 +2856,10 @@ function buildGfx() {
   };
   const chk = canvasTex(64, 512, (g, w, h) => { const q = 32; for (let y = 0; y < h / q; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * q, y * q, q, q); } });
   const lineMat = new THREE.MeshBasicMaterial({ color: '#eeeeee' });
-  across(0, 0, 2 * HALF_W, 2 * KS, new THREE.MeshLambertMaterial({ map: chk }));
-  for (let slot = 0; slot < 8; slot++) { const g = gridSlot(slot); across(g.s + 3.4 * KS, g.lat, 3.2 * KS, 0.25, lineMat); }
+  if (!TRACK.arena) {
+    across(0, 0, 2 * HALF_W, 2 * KS, new THREE.MeshLambertMaterial({ map: chk }));
+    for (let slot = 0; slot < 8; slot++) { const g = gridSlot(slot); across(g.s + 3.4 * KS, g.lat, 3.2 * KS, 0.25, lineMat); }
+  }
   for (const z of T.drs) {
     across(z.from, 0, 15, 0.35, lineMat);
     for (let q = -6.75; q < 7.5; q += 1.5) across(z.det, q, 0.8, 0.35, lineMat);
@@ -2839,7 +2889,7 @@ function buildGfx() {
         const m = new THREE.Mesh(new THREE.PlaneGeometry(18, 2.8), new THREE.MeshBasicMaterial({ map: t })); m.position.set(x, 9.6, 0); m.rotation.y = ry; grp.add(m);
       }
     }
-    scene.add(grp);
+    if (!TRACK.arena) scene.add(grp);           // (no start gantry in the arena)
   }
   // grandstand, pit building (F1 circuits only)
   if (!TRACK.kart) {
@@ -3206,7 +3256,7 @@ function buildGfx() {
   for (const k of keepers) scene.add(k);
   carMeshes = []; ghostMesh = null; chaosObjs = []; hazMesh = new Map(); skidHead = 0; skidCount = 0; skidGeo.setDrawRange(0, 0);
   planes = []; planeT = 1; taxiMesh = new Map(); if (!TRACK.airport) airportLights = []; if (!TRACK.jokes) jokeAnims = [];
-  leisure = TRACK.leisure ? buildLeisure() : TRACK.monaco ? buildMonaco() : null;
+  leisure = TRACK.leisure ? buildLeisure() : TRACK.monaco ? buildMonaco() : TRACK.arena ? buildArena() : null;
   airship = TRACK.airship && TRACK.schlossberg ? buildAirship() : null;
   demo.s = 0; demo.cam.station = -1; demo.cam.snap = true;
   }
@@ -3520,6 +3570,44 @@ function buildGfx() {
       p.mesh.userData.gear.forEach(gm => gm.visible = p.kind === 'arr' || a < 120);
     }
     planes = planes.filter(p => { if (p.s < p.S1) return true; dropPlane(p); return false; });
+  }
+
+  // ---- the battle arena: the balloon monument, brick pillars, stands round the outside and floodlights
+  function buildArena() {
+    const anims = [], L = c => new THREE.MeshLambertMaterial({ color: c });
+    const obs = arenaObstacles();
+    // monument: stone plinth with three giant balloons
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(6.5, 7, 1.6, 32), L('#cfc6b4')); plinth.position.y = 0.8; scene.add(plinth);
+    const bals = [];
+    [['#e8202f', -2.2, 0], ['#ffd23f', 1.6, -1.8], ['#2f62ff', 1.4, 2.2]].forEach(([c, x, z], k) => {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(2.6, 20, 16), new THREE.MeshLambertMaterial({ color: c, emissive: new THREE.Color(c).multiplyScalar(0.2) }));
+      b.scale.y = 1.2; b.position.set(x, 9 + k * 1.3, z); scene.add(b); bals.push(b);
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7.5 + k * 1.3, 4), L('#eeeeee')); st.position.set(x * 0.5, 1.6 + (7.5 + k * 1.3) / 2 - 0.3, z * 0.5); st.rotation.z = -x * 0.04; scene.add(st);
+    });
+    let t = 0; anims.push(dt => { t += dt; bals.forEach((b, k) => { b.position.y = 9 + k * 1.3 + Math.sin(t * 1.1 + k) * 0.35; b.rotation.y = t * 0.2; }); });
+    // brick pillars
+    const brick = canvasTex(64, 64, (g, w, h) => { g.fillStyle = '#b3452c'; g.fillRect(0, 0, w, h); g.fillStyle = '#d8c9b2'; for (let y = 0; y < h; y += 16) { g.fillRect(0, y, w, 2); for (let x = (y / 16) % 2 ? 16 : 0; x < w; x += 32) g.fillRect(x, y, 2, 16); } }, true);
+    for (const [x, y, r] of obs) if (r > 0 && r < 5) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 4.5, 8), new THREE.MeshLambertMaterial({ map: brick })); m.position.set(x, 2.25, y); scene.add(m);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.3, r + 0.3, 0.4, 8), L('#e9e4d8')); cap.position.set(x, 4.7, y); scene.add(cap);
+    }
+    // stands all round, behind the wall, packed with a crowd
+    const crowd = canvasTex(256, 64, (g, w, h) => { g.fillStyle = '#3a3f4a'; g.fillRect(0, 0, w, h); const cols = ['#e8202f', '#ffd23f', '#2f62ff', '#f4f4f4', '#2bd96b', '#ff8a00', '#c77dff']; for (let k = 0; k < 900; k++) { g.fillStyle = cols[k % cols.length]; g.fillRect(Math.random() * w, Math.random() * h, 3, 4); } }, true);
+    const segs = 36, R0 = ARENA_R + 26;
+    for (let k = 0; k < segs; k++) {
+      const a = (k + 0.5) / segs * 2 * Math.PI, w = 2 * Math.PI * R0 / segs - 1;
+      for (let row = 0; row < 4; row++) {
+        const rr = R0 + row * 3.2, m = new THREE.Mesh(new THREE.BoxGeometry(w + row * 0.55, 1.4 + row * 1.5, 3.2), row === 3 ? L('#3a3f4a') : new THREE.MeshLambertMaterial({ map: crowd }));
+        m.position.set(Math.cos(a) * rr, (1.4 + row * 1.5) / 2, Math.sin(a) * rr); m.rotation.y = -a + Math.PI / 2; scene.add(m);
+      }
+    }
+    // floodlights
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + k * Math.PI / 2, x = Math.cos(a) * (R0 + 16), z = Math.sin(a) * (R0 + 16);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 34, 8), L('#9aa1ab')); pole.position.set(x, 17, z); scene.add(pole);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 1), new THREE.MeshBasicMaterial({ color: '#fff7d6' })); head.position.set(x, 34, z); head.lookAt(0, 0, 0); scene.add(head);
+    }
+    return anims;
   }
 
   // ---- Monaco: the harbour and the sea with yachts, the tunnel, apartment blocks all the way up the hill and the Casino
@@ -4163,6 +4251,16 @@ function buildGfx() {
     if (isChaos()) chaosBuild();
     carMeshes.forEach(m => scene.remove(m.g));
     carMeshes = cs.map(c => vehModel(c.col));
+    if (TRACK.arena) carMeshes.forEach((m, i) => {       // three balloons on strings above each car
+      m.balloons = [];
+      const col = new THREE.Color(cs[i].col.c), mat = new THREE.MeshLambertMaterial({ color: col, emissive: col.clone().multiplyScalar(0.25) }), str = new THREE.MeshBasicMaterial({ color: '#dddddd' });
+      for (let k = 0; k < 3; k++) {
+        const b = new THREE.Group(), ox = -0.5 + (k - 1) * 0.12, oz = (k - 1) * 0.45, top = 2.2 + k % 2 * 0.25;
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 10), mat); ball.scale.y = 1.2; ball.position.set(ox, top, oz); b.add(ball);
+        const s0 = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, top - 0.6, 3), str); s0.position.set(ox, 0.3 + (top - 0.6) / 2, oz); b.add(s0);
+        m.g.add(b); m.balloons.push(b);
+      }
+    });
     if (ghostMesh) { scene.remove(ghostMesh.g); ghostMesh = null; }
     if (isHot()) ghostMesh = makeGhost();
     cs.forEach(c => { c.cam = { station: -1, look: V(c.x, c.alt, c.y), fov: 30, snap: true, pos: V(c.x, c.alt + 4, c.y), hd: c.h }; });
@@ -4191,6 +4289,7 @@ function buildGfx() {
       m.light.material.color.set(c.brakeIn > 0.1 || (c.boostOn && Math.floor(simTime * 8) % 2) ? '#ff2020' : '#330000');
       const ph = c.phantomT > 0;
       m.g.visible = ph || !(c.ghost > 0 && Math.floor(simTime * 12) % 2);
+      if (m.balloons) { if (c.out) m.g.visible = false; m.balloons.forEach((b, k) => { b.visible = k < (c.balloons || 0); b.rotation.z = Math.sin(simTime * 3 + k * 2) * 0.12 - clamp(c.vf / 60, -0.3, 0.3); }); }
       if (m.phantom !== ph) {
         m.phantom = ph;
         m.g.traverse(o => { if (o.isMesh && o.material && o.material.map !== shTex) { o.material.transparent = ph; o.material.opacity = ph ? 0.35 : 1; o.material.depthWrite = !ph; } });
@@ -4324,8 +4423,11 @@ function buildGfx() {
       pMat.uniforms.scale.value = wxMat.uniforms.scale.value = vp.h * pr / (2 * Math.tan(cam.fov * Math.PI / 360));
       wxMat.uniforms.cpos.value.copy(cam.position);
       const own = carMeshes[cars.indexOf(c)], hideHead = !!(own && own.head && c.camMode === 'onboard');
+      const hideB = own && own.balloons && c.camMode !== 'tv' ? own.balloons.filter(b => b.visible) : [];   // your own balloons would fill the screen
       if (hideHead) own.head.visible = false;
+      hideB.forEach(b => b.visible = false);
       tunnelLight(cam); renderer.render(scene, cam);
+      hideB.forEach(b => b.visible = true);
       if (hideHead) own.head.visible = true;
       cams.push(cam);
     });
@@ -4403,20 +4505,21 @@ function drawHud(vp, c) {
   txt(isHot() ? 'TT' : 'P' + pos, 47, 63, F(800, 34), c.col.c === '#d4dae0' ? '#111' : '#fff', 'center');
   txt(c.name.toUpperCase(), 92, 38, F(700, 15));
   const lapNo = Math.min(cfg.laps, c.lapsDone + 1);
-  txt(isHot() ? (isDaily() ? dailyNow.cond.icon + ' DAILY · ' : '') + (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
+  if (isBattle()) txt(c.out ? 'OUT – ALL BALLOONS POPPED' : '🎈'.repeat(Math.max(0, c.balloons)) + `   ${cars.filter(o => !o.out).length} LEFT`, 92, 60, F(600, 14), c.out ? '#ff6b6b' : '#c8ccd2');
+  else txt(isHot() ? (isDaily() ? dailyNow.cond.icon + ' DAILY · ' : '') + (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
   if (c.penalty) txt('+' + c.penalty + 's PEN', 256, 60, F(800, 12), '#ff5050', 'right');
   else if (c.warnings) txt('⚠ ' + c.warnings + '/3', 256, 60, F(700, 12), YELLOW, 'right');
   if (state === 'race' && !c.finished && order.length > 1) {
     const g = rank > 0 ? gapTo(c, order[rank - 1]) : (order[1] && !order[1].finished ? -gapTo(order[1], c) : null);
-    if (g != null) txt(g > 0 ? 'INT ' + fmtGap(g) : 'LEAD ' + Math.abs(g).toFixed(3), 92, 79, F(600, 13), g > 0 ? '#ff9b9b' : '#9bffb8');
+    if (g != null && !isBattle()) txt(g > 0 ? 'INT ' + fmtGap(g) : 'LEAD ' + Math.abs(g).toFixed(3), 92, 79, F(600, 13), g > 0 ? '#ff9b9b' : '#9bffb8');
   }
   if (state !== 'countdown') {
     const x = w - 14 - 220;
     panel(x, 14, 220, 118);
-    const cur = c.finished ? c.finishTime : c.timing ? simTime - c.lapStart : null;
+    const cur = isBattle() ? Math.max(0, BATTLE_T - (state === 'race' ? simTime - raceStart : 0)) : c.finished ? c.finishTime : c.timing ? simTime - c.lapStart : null;
     const inv = c.lapInvalid && !c.finished;
     const nxt = c.nextInv && isHot();                  // hot lap: the next lap is already deleted (track limits late in this one)
-    txt(c.finished ? 'TOTAL' : inv && nxt ? 'INVALID ×2' : inv ? 'INVALID' : nxt ? 'NEXT LAP ✕' : 'TIME', x + 14, 42, F(600, 12), inv || nxt ? '#ff6b6b' : '#9aa1ab');
+    txt(isBattle() ? 'TIME LEFT' : c.finished ? 'TOTAL' : inv && nxt ? 'INVALID ×2' : inv ? 'INVALID' : nxt ? 'NEXT LAP ✕' : 'TIME', x + 14, 42, F(600, 12), inv || nxt ? '#ff6b6b' : '#9aa1ab');
     txt(fmt(cur), x + 206, 44, F(700, 22), inv ? '#ff8a8a' : '#fff', 'right');
     txt(c.lastInvalid ? 'LAST ✕' : 'LAST', x + 14, 70, F(600, 12), c.lastInvalid ? '#ff6b6b' : '#9aa1ab');
     txt(fmt(c.last), x + 206, 70, F(600, 16), c.lastInvalid ? '#ff8a8a' : '#ddd', 'right');
@@ -4641,7 +4744,7 @@ function render(dt) {
   else if (W >= H) drawMinimap(W / 2 - bw * k / 2, H - bh * k - 22, ms);
   else drawMinimap(W - bw * k - 22, H - bh * k - 22, ms);
   if (state === 'race' && !paused) {
-    const wait = finishOrder.length && cars.some(c => !c.finished);
+    const wait = !isBattle() && finishOrder.length && cars.some(c => !c.finished);
     if (wait) txt('Waiting for ' + cars.find(c => !c.finished).name + ' to take the chequered flag…', W / 2, 30, F(600, 14), '#ddd', 'center');
   }
   AU.update(humans(), !paused && (state === 'race' || state === 'countdown'));
@@ -4651,6 +4754,7 @@ function render(dt) {
 function showResults() {
   state = 'results'; resultsAt = 0;
   const total = c => c.finishTime + c.penalty;
+  if (isBattle()) { showBattleResults(); return; }
   const order = [...cars].sort((a, b) => (b.lapsDone - a.lapsDone) || (total(a) - total(b)));
   const win = order[0];
   let html = '<tr><th>Pos</th><th>Driver</th><th>Time</th><th>Best lap</th></tr>';
@@ -4909,15 +5013,24 @@ function refreshMenu() {
   }
   seg('playersSeg', [[1, '1'], [2, '2']], cfg.players, v => { cfg.players = v; store.set('players', v); });
   const soloMenu = cfg.players === 1;
-  seg('modeSeg', soloMenu ? [['race', 'Race'], ['hot', 'Hot lap'], ['daily', '📅 Daily'], ['chaos', 'Chaos']] : [['race', 'Race'], ['chaos', 'Chaos']],
+  seg('modeSeg', soloMenu ? [['race', 'Race'], ['hot', 'Hot lap'], ['daily', '📅 Daily'], ['chaos', 'Chaos'], ['battle', '🎈 Battle']] : [['race', 'Race'], ['chaos', 'Chaos'], ['battle', '🎈 Battle']],
     !soloMenu && hotMode() ? 'race' : cfg.mode, v => { cfg.mode = v; store.set('mode', v); });
-  const solo = soloMenu, hot = solo && hotMode(), chaos = cfg.mode === 'chaos', daily = solo && cfg.mode === 'daily';
-  for (const id of ['trackSeg', 'kartSeg']) document.getElementById(id).parentElement.style.display = daily ? 'none' : '';
+  const solo = soloMenu, hot = solo && hotMode(), chaos = cfg.mode === 'chaos', daily = solo && cfg.mode === 'daily', battle = cfg.mode === 'battle';
+  if (battle && !TRACK.arena && !refreshMenu.loading) {                  // Battle: show the arena
+    refreshMenu.loading = true; document.getElementById('startBtn').textContent = 'Building arena…';
+    setTimeout(() => { loadTrackData('arena'); if (GFX) GFX.buildScene(); cars = []; refreshMenu.loading = false; refreshMenu(); }, 30);
+  } else if (!battle && TRACK.arena && !refreshMenu.loading && !daily) {  // left Battle: back to your track
+    refreshMenu.loading = true;
+    setTimeout(() => { loadTrackData(store.get('track', 'spa')); if (GFX) GFX.buildScene(); cars = []; refreshMenu.loading = false; refreshMenu(); }, 30);
+  }
+  for (const id of ['trackSeg', 'kartSeg']) document.getElementById(id).parentElement.style.display = daily || battle ? 'none' : '';
   document.getElementById('modeOpt').style.display = '';
-  document.getElementById('lapsOpt').style.display = hot ? 'none' : '';
+  document.getElementById('lapsOpt').style.display = hot || battle ? 'none' : '';
   document.getElementById('ghostOpt').style.display = hot ? '' : 'none';
   const top = boardFor(D.track, D.key).slice(0, 3);
-  document.getElementById('ghostInfo').innerHTML = daily
+  document.getElementById('ghostInfo').innerHTML = battle
+    ? '🎈 <b>Battle arena</b>: everyone starts with 3 balloons. Grab the <span style="color:#ffb347">? boxes</span> and fire items with your boost key – an oil slick, a loose tyre, a brick wall, or ramming someone while your turbo is on pops one of their balloons. Lose all three and you\'re out; the last car with balloons wins (or the most balloons after 3 minutes). Add CPU drivers to fill the arena.'
+    : daily
     ? `📅 <b>Daily challenge</b> – <b style="color:#fff">${esc(TRACKS[D.track].title)}</b> with ${D.cond.icon} <b style="color:#ffd23f">${D.cond.name}</b>: ${D.cond.desc}. ` +
       `The same for everyone today, with its own leaderboard (best valid lap counts). New challenge in ${dailyLeft()}.<br>` +
       (top.length ? 'Today: ' + top.map((r, i) => `${['🥇', '🥈', '🥉'][i]} ${esc(r.name)} <b>${fmt(r.t)}</b>`).join(' · ') : 'No laps yet today – set the first one!')
@@ -4929,7 +5042,7 @@ function refreshMenu() {
   seg('ghostSeg', [['record', 'Record'], ['mine', 'My best'], ['off', 'Off']], cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
   document.getElementById('pc1').classList.toggle('off', solo);
   document.getElementById('soloNote').style.display = solo ? '' : 'none';
-  document.getElementById('startBtn').textContent = daily ? 'Start daily challenge' : hot ? 'Start hot lap' : (chaos ? 'Start chaos ' : 'Start ') + (cupOn() ? 'cup' : 'race');
+  document.getElementById('startBtn').textContent = battle ? 'Start battle' : daily ? 'Start daily challenge' : hot ? 'Start hot lap' : (chaos ? 'Start chaos ' : 'Start ') + (cupOn() ? 'cup' : 'race');
   seg('lapsSeg', [[1, '1'], [3, '3'], [5, '5'], [10, '10']], cfg.laps, v => { cfg.laps = v; store.set('laps', v); });
   seg('camSeg', [['onboard', 'Onboard'], ['rear', 'Rear cam'], ['tv', 'TV']], cfg.cam, v => { cfg.cam = v; store.set('cam3d', v); });
   seg('cpuSeg', [[0, '0'], [1, '1'], [3, '3'], [5, '5']], cfg.cpu, v => { cfg.cpu = v; store.set('cpu', v); });
@@ -5012,6 +5125,129 @@ function showRecords() {
   };
   document.getElementById('recBody').innerHTML = board('f1');
   show('recordsOv', true);
+}
+
+// ---------------------------------------------------------------- battle arena (Chaos items, 3 balloons each)
+const BATTLE_T = 180;                         // seconds; then the most balloons wins
+const ARENA_R = 36 + 39.2;                    // the outer wall (ring radius + wall distance)
+// the central balloon monument and four brick pillars: [x, y, radius]; the outer wall as [0, 0, -R]
+function arenaObstacles() {
+  const o = [[0, 0, 6.5]];
+  for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; o.push([Math.cos(a) * 45, Math.sin(a) * 45, 3.6]); }
+  o.push([0, 0, -ARENA_R]);
+  return o;
+}
+function arenaWall(c) {
+  for (const [px, py, pr] of arenaObstacles()) {
+    const out = pr < 0, lim = out ? -pr - VEH.halfW : pr + VEH.halfW + 0.3;
+    const dx = c.x - px, dy = c.y - py, d = Math.hypot(dx, dy) || 1e-6;
+    if (out ? d <= lim : d >= lim) continue;
+    const nx = dx / d, ny = dy / d;
+    c.x = px + nx * lim; c.y = py + ny * lim;
+    const vn = c.vx * nx + c.vy * ny, into = out ? vn > 0 : vn < 0;
+    if (into) {
+      c.vx -= 1.3 * vn * nx; c.vy -= 1.3 * vn * ny; c.vx *= 0.8; c.vy *= 0.8;
+      if (Math.abs(vn) > 2.5) { c.shake = Math.min(1, Math.abs(vn) / 10); AU.thud(Math.abs(vn) / 16); for (let k = 0; k < Math.min(16, Math.abs(vn) * 2); k++) spark(c.x - nx * 0.6 * (out ? -1 : 1), c.y - ny * 0.6 * (out ? -1 : 1), c.alt + 0.3); }
+    }
+  }
+}
+function placeArena(c, slot, n) {            // evenly round the arena, all heading the same way round
+  const a = slot / n * 2 * Math.PI + 0.3, r = 58;
+  c.x = Math.cos(a) * r; c.y = Math.sin(a) * r; c.h = a + Math.PI / 2; c.alt = 0; c.prog = 0;
+  const g = nearestGlobal(c.x, c.y); c.ti = g ? g.j : 0; c.s = T.S[c.ti];
+}
+function arenaProps() {                       // item boxes in two rings, boost pads, and two jump ramps
+  boxes = []; pads = []; ramps = [];
+  const box = (x, y) => boxes.push({ s: 0, lat: 0, x, y, alt: 0, active: true, respawn: 0, spin: Math.random() * 6 });
+  for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; box(Math.cos(a) * 20, Math.sin(a) * 20); }
+  for (let k = 0; k < 10; k++) { const a = (k + 0.5) * Math.PI / 5; box(Math.cos(a) * 62, Math.sin(a) * 62); }
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2, x = Math.cos(a) * 32, y = Math.sin(a) * 32, g = nearestGlobal(x, y); pads.push({ s: 0, x, y, h: a + Math.PI / 2, alt: 0, i: g ? g.j : 0 }); }
+  for (const a of [Math.PI * 0.75, Math.PI * 1.75]) { const x = Math.cos(a) * 58, y = Math.sin(a) * 58, g = nearestGlobal(x, y); ramps.push({ s: 0, x, y, h: a + Math.PI / 2, alt: 0, i: g ? g.j : 0 }); }
+}
+function popBalloon(c, by) {
+  if (!isBattle() || c.out || c.popT > 0 || state !== 'race') return;
+  c.balloons--; c.popT = 1.6; c.ghost = Math.max(c.ghost, 1.6);        // a moment's mercy after a pop
+  AU.pop(0.3); AU.beep(1500, 0.05, 0.08);
+  for (let k = 0; k < 24; k++) parts.push({ x: c.x, y: c.y, alt: c.alt + 2.2, vx: (Math.random() - .5) * 12, vy: (Math.random() - .5) * 12, va: 2 + Math.random() * 6, life: 0.8, max: 0.8, size: 0.4, kind: 'pit' });
+  if (by && by !== c) { by.hits = (by.hits || 0) + 1; say(by, `POP! ${c.name.toUpperCase()} ${c.balloons > 0 ? '🎈'.repeat(c.balloons) : 'IS OUT'}`, '#ffd23f', 1.6); }
+  if (c.balloons > 0) { say(c, `POP! ${'🎈'.repeat(c.balloons)} LEFT`, '#ff6b6b', 1.8); return; }
+  c.out = true; c.finished = true; c.outAt = simTime; c.ghost = 1e9; c.vx *= 0.3; c.vy *= 0.3; finishOrder.push(c);
+  say(c, 'OUT! ALL BALLOONS POPPED', '#ff6b6b', 4);
+  humans().forEach(h => { if (h !== c && !h.out) say(h, c.name.toUpperCase() + ' IS OUT', '#ffd23f', 1.8); });
+}
+function battleStep(dt) {
+  const alive = cars.filter(c => !c.out), left = BATTLE_T - (simTime - raceStart);
+  if (resultsAt) return;
+  const humansOut = humans().every(h => h.out);
+  if (alive.length <= 1 || left <= 0 || humansOut) {
+    resultsAt = simTime + 2.8;
+    const win = [...cars].sort(battleOrder)[0];
+    humans().forEach(h => say(h, left <= 0 ? 'TIME! ' + win.name.toUpperCase() + ' WINS' : win === h ? 'WINNER! LAST ONE STANDING' : win.name.toUpperCase() + ' WINS', '#ffd23f', 3));
+    AU.cheer(1.2);
+  } else if (left < 10.5 && Math.floor(left) !== Math.floor(left + dt) && humans().length) humans().forEach(h => say(h, Math.ceil(left) + '', '#fff', 0.8));
+}
+// CPU in the arena: get an item, hunt the nearest rival, use the item when it's lined up; steer round the pillars
+function battleCpu(c) {
+  const v = Math.hypot(c.vx, c.vy), lv = CPU_LEVELS[cfg.cpuLevel] || CPU_LEVELS.medium;
+  c.stuckT = v < 1.5 && c.spinT <= 0 ? (c.stuckT || 0) + STEP : 0;
+  if (c.stuckT > 1.2) { c.backT = 0.9; c.stuckT = 0; c.backDir = Math.random() < 0.5 ? -1 : 1; }
+  if (c.backT > 0) { c.backT -= STEP; return { throttle: 0, brake: 1, steer: c.backDir, boost: false, analog: true }; }
+  const rivals = cars.filter(o => o !== c && !o.out), dist = o => Math.hypot(o.x - c.x, o.y - c.y);
+  const foe = rivals.length ? rivals.reduce((a, b) => dist(a) < dist(b) ? a : b) : null;
+  let tx = 0, ty = 0;
+  if (!c.item && c.rollT <= 0) {               // no item: nearest box
+    let bd = Infinity; for (const b of boxes) if (b.active) { const d = Math.hypot(b.x - c.x, b.y - c.y); if (d < bd) { bd = d; tx = b.x; ty = b.y; } }
+    if (bd === Infinity && foe) { tx = foe.x; ty = foe.y; }
+  } else if (foe) { const lead = Math.min(0.6, dist(foe) / 40); tx = foe.x + foe.vx * lead; ty = foe.y + foe.vy * lead; }
+  const wrap = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+  let ang = wrap(Math.atan2(ty - c.y, tx - c.x) - c.h);
+  // pillars ahead: steer round them
+  const hx = Math.cos(c.h), hy = Math.sin(c.h);
+  for (const [px, py, pr] of arenaObstacles()) {
+    if (pr < 0) continue;
+    const rx = px - c.x, ry = py - c.y, along = rx * hx + ry * hy, side = rx * -hy + ry * hx;
+    if (along > 0 && along < 10 + v * 0.6 && Math.abs(side) < pr + 2.8 && Math.hypot(tx - c.x, ty - c.y) > along) ang += (side > 0 ? -1 : 1) * 0.9;
+  }
+  // the outer wall: turn back in
+  const r = Math.hypot(c.x, c.y);
+  if (r > ARENA_R - 9 && (c.x * c.vx + c.y * c.vy) / (r || 1) > 2) ang = wrap(Math.atan2(-c.y, -c.x) - c.h) * 0.8 + ang * 0.2;
+  const steer = clamp(ang * 2.6, -1, 1), sharp = Math.abs(ang) > 1.7;
+  // items
+  let boost = false;
+  if (c.item && foe && c.rollT <= 0) {
+    c.holdT = (c.holdT || 0) + STEP;
+    const d = dist(foe), fa = Math.abs(wrap(Math.atan2(foe.y - c.y, foe.x - c.x) - c.h)), behind = fa > 2.3;
+    const it = c.item;
+    if ((it === 'turbo' || it === 'triple') && fa < 0.3 && d < 26) boost = true;
+    else if (it === 'tyre' && fa < 0.16 && d < 48) boost = true;
+    else if ((it === 'oil' || it === 'wall') && behind && d < 16) boost = true;
+    else if (it === 'shower' && d < 45) boost = true;
+    else if (it === 'phantom' && (d < 10 || c.holdT > 4)) boost = true;
+    else if (c.holdT > 9) boost = true;
+    if (boost && !c.prevBoost) c.holdT = 0;
+    if (boost && c.prevBoost) boost = false;            // a fresh press each time (chaosCar fires on the edge)
+  }
+  const maxThr = lv.skill >= 0.96 ? 1 : lv.skill >= 0.95 ? 0.94 : 0.86;
+  return { throttle: sharp ? 0.35 : maxThr, brake: sharp && v > 9 ? 0.5 : 0, steer, boost, analog: true };
+}
+function showBattleResults() {
+  state = 'results'; resultsAt = 0;
+  const order = [...cars].sort(battleOrder), win = order[0];
+  let html = '<tr><th>Pos</th><th>Driver</th><th>Balloons</th><th>Pops</th></tr>';
+  order.forEach((c, i) => {
+    html += `<tr><td class="pos">P${i + 1}</td><td><span class="chip" style="background:${c.col.c}"></span>${esc(c.name)}${c.cpu ? ' <small style="color:var(--dim)">CPU</small>' : ''}</td>` +
+      `<td class="num">${c.out ? '<span style="color:#ff6b6b">OUT</span>' : '🎈'.repeat(c.balloons)}</td><td class="num">${c.hits || 0}</td></tr>`;
+  });
+  document.getElementById('resTable').innerHTML = html;
+  document.getElementById('resTitle').innerHTML = 'BATTLE <span>RESULT</span>';
+  document.getElementById('resSub').textContent = `Battle arena · ${win.name} wins with ${win.out ? 'the longest survival' : win.balloons + ' balloon' + (win.balloons > 1 ? 's' : '') + ' left'}!`;
+  document.getElementById('resBanner').textContent = `Most pops: ${[...cars].sort((a, b) => (b.hits || 0) - (a.hits || 0))[0].name} (${Math.max(...cars.map(c => c.hits || 0))})`;
+  const grid = document.getElementById('resGrid'); grid.classList.remove('cup');
+  document.getElementById('raceHead').style.display = 'none'; document.getElementById('cupBox').innerHTML = ''; document.getElementById('podium').innerHTML = '';
+  document.querySelector('#results .panel').style.width = 'min(640px,100%)';
+  document.getElementById('rematchBtn').textContent = NET.room ? 'Back to the room (Enter)' : 'Rematch (Enter)';
+  document.getElementById('menuBtn').textContent = 'Menu (Esc)';
+  show('results', true);
 }
 
 // ---------------------------------------------------------------- daily challenge
