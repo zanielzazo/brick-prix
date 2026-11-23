@@ -69,7 +69,7 @@ Press **T** (or 📈 Telemetry on the pause or results screen) for the lap telem
 
 **On a phone or tablet** (landscape): drag the left pad to steer (or tap TILT and tilt the phone), GAS and BRAKE bottom right, ERS/item above them, camera and pause at the top. Starting a race goes full screen.
 
-You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run and G switches the ghost (record / my best / off).
+You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run (your session's best lap, sectors and last lap stay until you go back to the menu) and G switches the ghost (record / my best / off).
 
 ## Race rules
 
@@ -96,7 +96,7 @@ The **🏆 Records** screen on the menu has a tab for each circuit. Each tab sho
 | Monaco | 1:15.483 |
 | Stunt tracks | the 🏁 Author times above |
 
-**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded.
+**The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded. Names are first come, first served: a name that is already on the leaderboard belongs to whoever set those laps, so a new player has to pick another one (your browser remembers the names you race with).
 
 The online records use a free [Supabase](https://supabase.com) table (see [`supabase.sql`](supabase.sql)). The public key in the game can only read laps and add new ones; nobody can edit or delete laps, and impossible lap times are rejected. If the database can't be reached, the game falls back to the records in your own browser.
 

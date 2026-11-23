@@ -1931,6 +1931,8 @@ function namesReady() {
     if (!n || isDefaultName(n)) { msg = need.length > 1 ? `Enter a name for Player ${p + 1} to start` : 'Enter your name to start'; bad = p; break; }
   }
   if (!msg && need.length > 1 && cfg.names[0].trim().toLowerCase() === cfg.names[1].trim().toLowerCase()) { msg = 'Use two different names'; bad = 1; }
+  if (!msg) for (const p of need) if (nameTaken(cfg.names[p])) { msg = takenMsg(cfg.names[p]); bad = p; break; }
+  if (!msg) need.forEach(p => ownName(cfg.names[p]));
   document.getElementById('nameWarn').textContent = msg;
   document.getElementById('enterHint').style.display = msg ? 'none' : '';
   for (const p of [0, 1]) document.getElementById('name' + p).classList.toggle('need', p === bad);
@@ -1946,6 +1948,8 @@ function startRace(rematch) {
   if (rematch) gridFlip = !gridFlip;
   const solo = cfg.players === 1;
   const prevCam = state === 'menu' ? [] : humans().map(c => c.camMode);   // a restart keeps each driver's camera
+  // hot lap: restarting (R, or the next stunt run) keeps this session's best lap, sectors and last lap; the menu clears them
+  const keep = state !== 'menu' && solo && hotMode() && cars[0] && !cars[0].cpu && !cars[0].remote ? { session, c: cars[0] } : null;
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
   hs.forEach((h, k) => { if (prevCam[k]) h.camMode = prevCam[k]; });
   const nCpu = NET.race || (solo && hotMode()) ? 0 : cfg.mode === 'battle' ? clamp(Math.max(cfg.cpu | 0, solo ? 1 : 0), 0, 5) : clamp(cfg.cpu | 0, 0, 5);
@@ -1985,7 +1989,8 @@ function startRace(rematch) {
   if (dailyNow) weather = dailyNow.cond.rain ? 'rain' : dailyNow.cond.glitter ? 'glitter' : 'dry';
   cfg.handling = dailyNow ? dailyNow.key : 'f1';                          // the day's own leaderboard, ghosts and bests
   record = getRecord(TRACK.id, cfg.handling);
-  session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
+  session = keep ? keep.session : { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
+  if (keep) for (const k of ['best', 'bestSec', 'bestTrace', 'lapTimes', 'last', 'lastInvalid', 'lastTel']) cars[0][k] = keep.c[k];
   simTime = 0; raceStart = 0;
   AU.setPans(solo);
   stuntNext = 0;
@@ -2004,7 +2009,7 @@ function startRace(rematch) {
     ghost = store.get(ghostKey(), null);
     if (ghost) ghost.name = 'Your best';
     if (ghost && ghost.tr) cars[0].bestTrace = ghost.tr;    // live delta against your all-time best
-    if (stuntRun() && ghost) cars[0].best = ghost.t;          // (a run compares with your best run, not just this one)
+    if (stuntRun() && ghost) cars[0].best = Math.min(cars[0].best, ghost.t);          // (a run compares with your best run, not just this one)
     recGhost = null; recState = 'idle'; pickGhost();
     if (cfg.ghost === 'record') loadRecordGhost();
   } else {
@@ -5049,6 +5054,20 @@ async function fetchOnline() {
   if (document.getElementById('recordsOv').classList.contains('show')) showRecords();
 }
 const isDefaultName = n => /^player [12]$/i.test(n.trim());
+// A name on the leaderboard belongs to whoever set those laps: this browser remembers the names it has raced
+// with, and any other name already on the board (or Claude's) is taken. Names in use here before this rule
+// (your menu names, your uploaded bests and local records) stay yours.
+const nameKey = n => String(n || '').trim().slice(0, 14).toLowerCase();
+const myNames = new Set(store.get('myNames', null) || []);
+if (!store.get('myNames', null)) {
+  cfg.names.forEach(n => { if (n && !isDefaultName(n)) myNames.add(nameKey(n)); });
+  try { for (const k of Object.keys(localStorage)) { const m = /^algarvegp\.pb\.[^.]+\.[^.]+\.(.+)$/.exec(k); if (m) myNames.add(nameKey(m[1])); } } catch (e) { }
+  for (const id of Object.keys(TRACKS)) { const r = store.get(recKey(id, 'f1'), null); if (r && r.name && !isDefaultName(r.name)) myNames.add(nameKey(r.name)); }
+  store.set('myNames', [...myNames]);
+}
+const nameTaken = n => { const k = nameKey(n); return !!k && !isDefaultName(n) && !myNames.has(k) && (k === 'claude' || online.rows.some(r => nameKey(r.name) === k)); };
+function ownName(n) { const k = nameKey(n); if (k && !isDefaultName(n) && !myNames.has(k)) { myNames.add(k); store.set('myNames', [...myNames]); } }
+const takenMsg = n => `“${n.trim()}” is already on the leaderboard – pick another name`;
 function packGhost(rec) {
   if (!rec || rec.length < 20) return null;
   const p = [];
@@ -5098,7 +5117,7 @@ async function claimDefaultLaps() {
   let changed = false;
   for (let p = 0; p < 2; p++) {
     const name = (cfg.names[p] || '').trim().slice(0, 14);
-    if (!name || isDefaultName(name)) continue;
+    if (!name || isDefaultName(name) || nameTaken(name)) continue;
     for (const id of Object.keys(TRACKS)) for (const h of ['f1']) {
       const key = TRACKS[id].recordKey + (h === 'f1' ? '.f1' : '');
       const r = store.get(key, null);
@@ -5120,7 +5139,7 @@ async function claimDefaultLaps() {
   if (changed) { fetchOnline(); if (state === 'menu') refreshMenu(); }
 }
 async function uploadLap(c, lt, rec) {
-  if (!onlineOn() || c.cpu || isDefaultName(c.name)) return;
+  if (!onlineOn() || c.cpu || isDefaultName(c.name) || nameTaken(c.name)) return;
   const name = c.name.trim().slice(0, 14), pbKey = `pb.${TRACK.id}.${cfg.handling}.${name.toLowerCase()}`;
   const pb = store.get(pbKey, 0);
   if (pb && lt >= pb) return;                     // only send personal bests
@@ -5191,7 +5210,9 @@ function refreshMenu() {
     const inp = document.getElementById('name' + p);
     inp.value = isDefaultName(cfg.names[p] || '') ? '' : cfg.names[p];
     inp.oninput = () => { cfg.names[p] = inp.value.trim() || 'Player ' + (p + 1); store.set('names', cfg.names); scheduleClaim(); if (p === 0 && NET.joined) netTrack();
-      if (document.getElementById('nameWarn').textContent) { inp.classList.remove('need'); document.getElementById('nameWarn').textContent = ''; document.getElementById('enterHint').style.display = ''; } };
+      const taken = nameTaken(cfg.names[p]);
+      if (taken) { inp.classList.add('need'); document.getElementById('nameWarn').textContent = takenMsg(cfg.names[p]); document.getElementById('enterHint').style.display = 'none'; }
+      else if (document.getElementById('nameWarn').textContent) { inp.classList.remove('need'); document.getElementById('nameWarn').textContent = ''; document.getElementById('enterHint').style.display = ''; } };
   }
   const seg = (id, opts, cur, set) => {
     const el = document.getElementById(id); el.innerHTML = '';
@@ -5556,6 +5577,8 @@ function netOpen(room, host) {
   netClose();
   if (!onlineOn()) { NET.status = 'Online play is not set up in this copy of the game.'; netUI(); return; }
   if (isDefaultName(cfg.names[0] || '')) { NET.status = 'Type your name first.'; netUI(); document.getElementById('netName').focus(); return; }
+  if (nameTaken(cfg.names[0])) { NET.status = takenMsg(cfg.names[0]) + '.'; netUI(); document.getElementById('netName').focus(); return; }
+  ownName(cfg.names[0]);
   Object.assign(NET, { room, host, pres: {}, joined: false, sawHost: false, race: null, t0: Date.now(), status: host ? 'Opening a room…' : `Joining ${room}…` });
   NET.setup = host ? { track: TRACK.id, mode: cfg.mode === 'hot' ? 'hot' : 'race', laps: cfg.laps } : null;
   const ws = new WebSocket(ONLINE.url.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(ONLINE.key) + '&vsn=1.0.0');
