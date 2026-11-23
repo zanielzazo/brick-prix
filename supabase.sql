@@ -3,7 +3,7 @@
 
 create table if not exists public.lap_records (
   id          bigint generated always as identity primary key,
-  track       text        not null check (track in ('algarve', 'spa', 'monza', 'rbr', 'silverstone', 'chaves', 'graz')),
+  track       text        not null check (track in ('algarve', 'spa', 'monza', 'rbr', 'silverstone', 'chaves', 'graz', 'lowg')),
   handling    text        not null check (handling in ('arcade', 'f1')),
   name        text        not null check (char_length(btrim(name)) between 1 and 14),
   lap_ms      integer     not null,
@@ -18,6 +18,7 @@ create table if not exists public.lap_records (
       when 'silverstone' then 79000
       when 'chaves'      then 22000
       when 'graz'        then 15000
+      when 'lowg'        then 35000
     end)
 );
 
@@ -70,4 +71,21 @@ alter table public.lap_records add constraint plausible_lap check (
     when 'silverstone' then 79000
     when 'chaves'      then 22000
     when 'graz'        then 15000
+  end);
+
+-- Added later: the Graz Airport apron circuit (track id 'lowg').
+alter table public.lap_records drop constraint if exists lap_records_track_check;
+alter table public.lap_records add constraint lap_records_track_check
+  check (track in ('algarve', 'spa', 'monza', 'rbr', 'silverstone', 'chaves', 'graz', 'lowg'));
+alter table public.lap_records drop constraint if exists plausible_lap;
+alter table public.lap_records add constraint plausible_lap check (
+  lap_ms <= 400000 and lap_ms >= case track
+    when 'algarve'     then 70000
+    when 'spa'         then 91000
+    when 'monza'       then 70000
+    when 'rbr'         then 55000
+    when 'silverstone' then 79000
+    when 'chaves'      then 22000
+    when 'graz'        then 15000
+    when 'lowg'        then 35000
   end);

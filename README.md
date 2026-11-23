@@ -8,7 +8,7 @@ A browser racing game in the style of Formula 1 for one or two players on one ke
 
 Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão)
 
-**Kart tracks** (their own row on the menu): Kartódromo de Chaves · Graz (Styria Karting Premstätten)
+**Kart tracks** (their own row on the menu): Kartódromo de Chaves · Graz (Styria Karting Premstätten) · Graz Airport (apron circuit)
 
 The layouts are the real circuits, taken from OpenStreetMap. Elevation and scenery are approximate.
 
@@ -17,6 +17,8 @@ Chaves is a real-size kart track (0.59 km, 12 turns, flat), raced in karts inste
 Graz is the "Spielberg" circuit at Styria Karting Premstätten (0.36 km, 11 turns), straight from OpenStreetMap like Chaves, raced right to left on the main straight. Graz Airport is next door, so the sky is busy: A380s, 777s, A320s, An-124s, An-225s, ATRs, Dash 8s and Cessnas land, take off and cross overhead, flying in every direction: some in Aeroficial colours, some in Condor-style stripes (sunshine yellow, red, blue, green, sand). A (fake) Schlossberg with the Uhrturm stands straight ahead of the grid, with a huge Aeroficial airship hovering beside it. The track is dressed in Aeroficial Intelligence colours, with their ads on the billboards, the gantry and the tyre walls.
 
 Around Graz there's more to look at: skiers and a chairlift on a snowy mountain (with a downhill bike trail, berms and jumps down its green flank), cross-country skiers on a trail, skaters on a frozen lake, and a football match (black-and-white v red, the Graz derby) with a stand full of fans.
+
+**Graz Airport** is a made-up 1.16 km kart circuit on the real apron of Graz Airport (layout of the airport from OpenStreetMap): a start straight past the terminal, then a twisty section through the remote stands with parked aircraft. Aircraft taxi across the circuit twice a lap: wait at the red light (running it costs +3 s, or the lap in hot lap), and don't hit the landing gear. Planes land and take off on runway 16C/34C next to you.
 
 Karts have no ERS or DRS.
 
@@ -66,6 +68,7 @@ The **🏆 Records** screen on the menu has a tab for each circuit. Each tab sho
 | Silverstone | 1:41.775 | 1:33.775 |
 | Chaves (karts) | 0:35.858 | 0:33.575 |
 | Graz (karts) | 0:25.717 | 0:23.733 |
+| Graz Airport (karts) | 0:52.425 | 0:51.092 |
 
 **The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded.
 
