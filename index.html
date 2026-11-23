@@ -14,6 +14,14 @@
   .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
     background:radial-gradient(ellipse at center, rgba(8,9,12,.35), rgba(8,9,12,.8)); z-index:5; padding:16px; }
   .overlay.show { display:flex; }
+  /* online rooms */
+  #onlineOv input { background:#0d0f13; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:9px 12px; font:700 15px "Segoe UI",sans-serif; }
+  #netCode { width:118px; font-weight:800 !important; font-size:18px !important; letter-spacing:.25em; text-transform:uppercase; text-align:center; }
+  .netcode { display:flex; align-items:center; gap:14px; margin-top:14px; flex-wrap:wrap; }
+  .netcode b { font:900 38px "Segoe UI",sans-serif; letter-spacing:.2em; color:#fff; }
+  .netp { display:inline-flex; align-items:center; gap:7px; margin:10px 10px 0 0; padding:7px 11px; border:1px solid var(--line); border-radius:9px; font-weight:700; }
+  .netp small { color:var(--dim); font-weight:600; }
+  #netSetup .seg { flex-wrap:wrap; }
   /* small screens (phones): menus scroll instead of being cut off */
   @media (max-height:640px), (max-width:760px) { .overlay { align-items:flex-start; overflow-y:auto; padding:8px; } }
   /* touch controls (phones / tablets) */
@@ -194,6 +202,7 @@
         <span class="namewarn" id="nameWarn"></span>
         <button class="btn ghost" id="helpBtn" style="margin-left:auto">❓ How to play</button>
         <button class="btn ghost" id="recordsBtn">🏆 Records</button>
+        <button class="btn ghost" id="onlineBtn">🌐 Online</button>
       </div>
       <div class="foot">
         <span>Track layouts © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL) · 3D: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> · elevation and scenery are approximate</span>
@@ -216,12 +225,43 @@
         <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run. <kbd>T</kbd> shows the lap telemetry.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
+        <div><b>🌐 Online</b> – one of you creates a room and shares the 4-letter code (or the invite link); everyone joins from their own browser and the host picks the track, Race or Hot lap together, and starts it for everyone. Each car is driven on its own computer and the others appear live (a fraction of a second behind). No contact between cars yet; pausing doesn't stop an online race.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
         <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records. <b>🏆 Cup</b> (next to the tracks): all five tracks in a row, points 10-8-6-5-4-3-2.</div>
         <div><b>Chaos</b> – mystery boxes give you Turbo Brick, Oil Slick, Loose Tyre, Safety Car (slows the leader), Local Shower (rain on the car ahead), Phantom (drive through anything), Brick Wall (drop behind) or Pit Stop (fixes you). The boost key fires it; whoever is behind gets better items. Blue pads boost you, yellow ramps launch you. <b>Drift</b>: hold throttle + brake while steering – blue sparks after 1 s, orange after 2 s – and let go for a boost. The weather changes every lap.</div>
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · <kbd>T</kbd> telemetry · <kbd>V</kbd> replay (results/pause: TV, onboard, rear or free camera, 0.25×–4×) · <kbd>P</kbd> photo mode · gamepads work too.</div>
       </div>
       <div class="go"><button class="btn" id="helpCloseBtn">Close (Esc)</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="onlineOv" class="overlay" style="z-index:6">
+  <div class="panel" style="width:min(760px,100%)">
+    <div class="checker"></div>
+    <div class="inner">
+      <h1 style="font-size:36px">ONLINE <span>RACE</span></h1>
+      <div class="sub">Race your friends live, each in their own house – one player per browser, up to 6. Cars don't touch each other yet.</div>
+      <div class="netcode"><span class="rec">Your name</span><input id="netName" maxlength="14" placeholder="Your name (required)" autocomplete="off"></div>
+      <div id="netOut">
+        <div class="go" style="margin-top:16px;flex-wrap:wrap">
+          <button class="btn" id="netCreate">Create room</button>
+          <span class="rec">or join a friend's:</span>
+          <input id="netCode" maxlength="4" placeholder="CODE" autocomplete="off">
+          <button class="btn ghost" id="netJoin">Join</button>
+        </div>
+      </div>
+      <div id="netIn" style="display:none">
+        <div class="netcode"><span class="rec">Room code</span><b id="netRoom"></b><button class="btn ghost" id="netCopy">🔗 Copy invite link</button></div>
+        <div id="netPlayers"></div>
+        <div id="netSetup"></div>
+      </div>
+      <div class="sub" id="netStatus" style="margin-top:12px;min-height:18px"></div>
+      <div class="go">
+        <button class="btn" id="netStart" style="display:none">Start for everyone</button>
+        <button class="btn ghost" id="netLeave" style="display:none">Leave room</button>
+        <button class="btn ghost" id="netCloseBtn" style="margin-left:auto">Close (Esc)</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1197,9 +1237,9 @@ function placeCar(c, slot) {
   c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = s; c.prog = s - T.L; c.alt = p.alt;
 }
 
-const humans = () => cars.filter(c => !c.cpu);               // humans are always first in `cars`
+const humans = () => cars.filter(c => !c.cpu && !c.remote);  // the players at this computer, always first in `cars`
 const isSolo = () => humans().length === 1;
-const isHot = () => cars.length === 1 && cfg.mode === 'hot';
+const isHot = () => cfg.mode === 'hot' && cars.filter(c => !c.remote).length === 1;   // online: the others' cars don't count
 const isChaos = () => cfg.mode === 'chaos' && cars.length > 0 && state !== 'menu';
 
 // ---------------------------------------------------------------- chaos mode
@@ -1535,10 +1575,10 @@ function startRace(rematch) {
     document.documentElement.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {});
   if (rematch) gridFlip = !gridFlip;
   const solo = cfg.players === 1;
-  const prevCam = state === 'menu' ? [] : cars.filter(c => !c.cpu).map(c => c.camMode);   // a restart keeps each driver's camera
+  const prevCam = state === 'menu' ? [] : humans().map(c => c.camMode);   // a restart keeps each driver's camera
   const hs = solo ? [makeCar(0)] : [makeCar(0), makeCar(1)];
   hs.forEach((h, k) => { if (prevCam[k]) h.camMode = prevCam[k]; });
-  const nCpu = solo && cfg.mode === 'hot' ? 0 : clamp(cfg.cpu | 0, 0, 5);
+  const nCpu = NET.race || (solo && cfg.mode === 'hot') ? 0 : clamp(cfg.cpu | 0, 0, 5);
   let names = cup ? cup.names : CPU_NAMES.slice().sort(() => Math.random() - 0.5);
   const cpus = [];
   if (TRACK.jokes) {            // the local legends race at Chaves – unless one of them is at the wheel
@@ -1547,7 +1587,15 @@ function startRace(rematch) {
   }
   for (let k = 0; k < nCpu; k++) cpus.push(makeCpu(hs.length + k, k, names));
   cars = hs.concat(cpus);
-  if (solo && cfg.mode === 'hot') placeHot(cars[0]);
+  if (NET.race) for (const P of NET.peers.values()) {     // online: the other players' cars, driven by their own computers
+    const c = makeCar(cars.length);
+    c.remote = true; c.peer = P; P.car = c; c.left = !!P.left; c.name = P.meta.name || '?'; c.col = COLORS[P.meta.col] || COLORS[0]; c.camMode = 'rear';
+    cars.push(c);
+  }
+  if (NET.race && cfg.mode !== 'hot') {                   // the host's grid order
+    const slot = id => Math.max(0, NET.race.order.findIndex(o => o.id === id));
+    cars.forEach(c => placeCar(c, slot(c.remote ? c.peer.id : NET.me)));
+  } else if (solo && cfg.mode === 'hot') cars.forEach(c => placeHot(c));
   else {
     const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
     // Chaos: humans start at the back (more boxes, better items); Race: random grid
@@ -1571,7 +1619,7 @@ function startRace(rematch) {
     recGhost = null; recState = 'idle'; pickGhost();
     if (cfg.ghost === 'record') loadRecordGhost();
   } else {
-    cd = { t: 0, lights: 0, out: 5 + 0.4 + Math.random() * 1.6 };
+    cd = { t: 0, lights: 0, out: NET.race ? 6 : 5 + 0.4 + Math.random() * 1.6 };   // online: the same lights-out for everyone
     state = 'countdown'; paused = false;
   }
   GFX.reset(cars);
@@ -1599,6 +1647,7 @@ function goCupRace() {
   setTimeout(() => { loadTrackData(id); if (GFX) GFX.buildScene(); startRace(false); }, 30);
 }
 function resultsNext() {
+  if (NET.room) { toMenu(); return; }         // online: back to the room; the host starts the next one
   if (!cup) startRace(true);
   else if (cup.done) newCup();
   else goCupRace();
@@ -1621,15 +1670,20 @@ function cupScore(order) {
   cup.race++; cup.done = cup.race >= CUP_TRACKS.length;
 }
 function toMenu() {
+  if (NET.race) { netCast('quit', { id: NET.me, r: NET.race.r }); NET.race = null; }
+  if (NET.prev) { Object.assign(cfg, NET.prev); NET.prev = null; }   // the room's settings were only for that race
   cup = null;
   fetchOnline();
   state = 'menu'; paused = false; AU.pause(false);
   show('pause', false); show('results', false); show('menu', true);
   refreshMenu();
+  if (NET.room) netShow();
 }
 function setPause(p) {
   if (state !== 'race' && state !== 'countdown') return;
   paused = p; show('pause', p); AU.pause(p);
+  document.getElementById('restartBtn').style.display = NET.race && !isHot() ? 'none' : '';   // an online race can't be restarted alone
+  document.getElementById('quitBtn').textContent = NET.race ? 'Leave race (Q)' : 'Main menu (Q)';
 }
 // ---------------------------------------------------------------- replays & photo mode
 // Every car is recorded 30 times a second (position, heading, pitch, steering, wheels, speed, brake). The replay
@@ -1834,6 +1888,11 @@ function onKeyPress(code) {
   if (document.getElementById('telOv').classList.contains('show')) { if (code === 'Escape' || code === 'KeyT' || code === 'Enter') closeTel(); return; }
   if (state === 'replay') { replayKey(code); return; }
   if (state === 'menu') {
+    if (document.getElementById('onlineOv').classList.contains('show')) {
+      if (code === 'Escape') show('onlineOv', false);
+      else if (code === 'Enter' || code === 'NumpadEnter') { if (!NET.room) netJoinClick(); else if (NET.host) netStartRace(); }
+      return;
+    }
     if (document.getElementById('recordsOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('recordsOv', false); return; }
     if (document.getElementById('helpOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('helpOv', false); return; }
     if (code === 'Enter' || code === 'NumpadEnter') startFromMenu();
@@ -1848,7 +1907,7 @@ function onKeyPress(code) {
   }
   if (paused) {
     if (code === 'Escape') setPause(false);
-    else if (code === 'KeyR') startRace(false);
+    else if (code === 'KeyR' && !(NET.race && !isHot())) startRace(false);
     else if (code === 'KeyQ') toMenu();
     else if (code === 'KeyT') openTel();
     else if (code === 'KeyV') openReplay(false);
@@ -2012,6 +2071,7 @@ function trackLocal(c) {
 }
 
 function collideCars(a, b) {
+  if (a.remote || b.remote) return;                 // online: no contact yet (phase 2)
   if (a.ghost > 0 || b.ghost > 0 || a.air !== b.air) return;
   if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 > 64) return;
   const offs = [VEH.front, VEH.rear], R = VEH.crash;
@@ -2060,8 +2120,9 @@ function step(dt) {
       cars.forEach(c => { c.lapStart = c.sectorStart = simTime; c.timing = true; say(c, 'GO!', GREEN, 1.2); });
     } else locked = true;
   }
-  const inputs = cars.map((c, i) => c.cpu ? cpuInput(c) : readInput(i));
+  const inputs = cars.map((c, i) => c.cpu ? cpuInput(c) : c.remote ? null : readInput(i));
   cars.forEach((c, i) => {
+    if (c.remote) { netRemote(c, dt); return; }       // online: another player's car, drawn from their updates
     if (c.air) airStep(c, dt); else physics(c, inputs[i], dt, locked);
     const s0 = c.s, s1 = trackLocal(c);
     let ds = s1 - s0; if (ds < -T.L / 2) ds += T.L; if (ds > T.L / 2) ds -= T.L;
@@ -2109,7 +2170,7 @@ function step(dt) {
     for (const o of cars) if (o !== c && !o.finished && o.prog > c.prog && (!other || o.prog < other.prog)) other = o;
     if (!isChaos()) for (const z of T.drs) if (crossed(s0, s1, z.det)) {
       c.drsZone = z; c.drsShut = false;
-      if (cars.length === 1) c.drsOK = true;
+      if (cars.length === 1 || isHot()) c.drsOK = true;
       else if (!other) c.drsOK = false;
       else { const g = gapTo(c, other); c.drsOK = c.lapsDone >= 1 && g != null && g > 0 && g < 1.0; }
       if (c.drsOK) say(c, 'DRS ENABLED', GREEN, 1.5);
@@ -2132,6 +2193,7 @@ function step(dt) {
   }
   for (let a = 0; a < cars.length; a++) for (let b = a + 1; b < cars.length; b++) collideCars(cars[a], cars[b]);
   if (TRACK.airport && (state === 'race' || state === 'countdown')) airportStep(dt);
+  if (NET.race) netTick();
   recFrame();
   cars.forEach(c => {
     if (c.ghost > 0) c.ghost -= dt; c.msgT -= dt; c.shake = Math.max(0, c.shake - dt * 2.5);
@@ -2140,7 +2202,8 @@ function step(dt) {
   });
   if (isChaos() && state === 'race') chaosWorld(dt);
   // once every human has finished, don't wait forever for a CPU that's stuck or a lap down
-  if (state === 'race' && !resultsAt && finishOrder.length && humans().every(h => h.finished)) resultsAt = simTime + 8;
+  if (state === 'race' && !resultsAt && finishOrder.length && humans().every(h => h.finished)) resultsAt = simTime + (NET.race ? 40 : 8);
+  if (NET.race && state === 'race' && humans().every(h => h.finished) && cars.every(c => c.finished || c.left)) resultsAt = Math.min(resultsAt || Infinity, simTime + 3);
   if (state === 'race' && resultsAt && simTime >= resultsAt) showResults();
   if (state !== 'menu') spawnFx(dt);
 }
@@ -4146,7 +4209,7 @@ function showResults() {
     else t = '+' + (total(c) - total(win)).toFixed(3) + 's';
     if (c.penalty) t += ` <small style="color:#ff6b6b">(incl. ${c.penalty}s pen.)</small>`;
     const fl = c.best === session.bestLap;
-    html += `<tr><td class="pos">P${i + 1}</td><td><span class="chip" style="background:${c.col.c}"></span>${esc(c.name)}${c.cpu ? ' <small style="color:var(--dim)">CPU</small>' : ''}</td>` +
+    html += `<tr><td class="pos">P${i + 1}</td><td><span class="chip" style="background:${c.col.c}"></span>${esc(c.name)}${c.cpu ? ' <small style="color:var(--dim)">CPU</small>' : ''}${c.remote ? ' <small style="color:var(--dim)">🌐</small>' : ''}</td>` +
       `<td class="num">${t}</td><td class="num ${fl ? 'purple' : ''}">${fmt(c.best)}${fl ? ' ⏱' : ''}</td></tr>`;
   });
   document.getElementById('resTable').innerHTML = html;
@@ -4188,8 +4251,9 @@ function showResults() {
       AU.beep(880, 0.4, 0.12);
     } else next = `Next: ${TRACK_SHORT[CUP_TRACKS[cup.race]]} (Enter)`;
   }
+  if (NET.room) next = 'Back to the room (Enter)';
   document.getElementById('rematchBtn').textContent = next;
-  document.getElementById('menuBtn').textContent = cup && !cup.done ? 'Quit cup (Esc)' : 'Menu (Esc)';
+  document.getElementById('menuBtn').textContent = NET.room ? 'Room (Esc)' : cup && !cup.done ? 'Quit cup (Esc)' : 'Menu (Esc)';
   show('results', true);
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
@@ -4345,13 +4409,13 @@ function refreshMenu() {
       const d = document.createElement('div');
       d.className = 'sw' + (cfg.colors[p] === i ? ' sel' : '');
       d.style.background = `linear-gradient(135deg, ${c.c} 60%, ${c.d} 60%)`;
-      d.onclick = () => { if (cfg.colors[1 - p] === i) cfg.colors[1 - p] = cfg.colors[p]; cfg.colors[p] = i; store.set('colors', cfg.colors); refreshMenu(); };
+      d.onclick = () => { if (cfg.colors[1 - p] === i) cfg.colors[1 - p] = cfg.colors[p]; cfg.colors[p] = i; store.set('colors', cfg.colors); refreshMenu(); if (NET.joined) netTrack(); };
       box.appendChild(d);
     });
     document.getElementById('pc' + p).style.setProperty('--pc', COLORS[cfg.colors[p]].c);
     const inp = document.getElementById('name' + p);
     inp.value = isDefaultName(cfg.names[p] || '') ? '' : cfg.names[p];
-    inp.oninput = () => { cfg.names[p] = inp.value.trim() || 'Player ' + (p + 1); store.set('names', cfg.names); scheduleClaim();
+    inp.oninput = () => { cfg.names[p] = inp.value.trim() || 'Player ' + (p + 1); store.set('names', cfg.names); scheduleClaim(); if (p === 0 && NET.joined) netTrack();
       if (document.getElementById('nameWarn').textContent) { inp.classList.remove('need'); document.getElementById('nameWarn').textContent = ''; document.getElementById('enterHint').style.display = ''; } };
   }
   const seg = (id, opts, cur, set) => {
@@ -4478,11 +4542,238 @@ function showRecords() {
   show('recordsOv', true);
 }
 
+// ---------------------------------------------------------------- online rooms (live multiplayer, phase 1)
+// One player per browser, up to 6. A room is a Supabase Realtime channel (broadcast + presence over a single
+// websocket, spoken directly – no extra library). Every browser drives its own car with the normal physics and
+// sends its state ~10×/s; the other cars are drawn NET_DELAY ms in the past, smoothed between updates (Hermite
+// on position and velocity) and briefly extrapolated if an update is late. No contact between cars yet.
+const NET_DELAY = 160, NET_MAX = 6, NET_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const NET = { ws: null, room: null, me: Math.random().toString(36).slice(2, 10), host: false, pres: {}, ref: 0, joinRef: null, hb: 0, t0: 0,
+  joined: false, sawHost: false, setup: null, race: null, peers: new Map(), status: '', lastSend: 0, prev: null };
+const netTopic = () => 'realtime:brickprix-' + NET.room;
+const netNewCode = () => Array.from({ length: 4 }, () => NET_LETTERS[Math.floor(Math.random() * NET_LETTERS.length)]).join('');
+function netRaw(o) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
+function netCast(event, payload) {
+  if (!NET.joined) return;
+  netRaw({ topic: netTopic(), event: 'broadcast', payload: { type: 'broadcast', event, payload }, ref: String(++NET.ref), join_ref: NET.joinRef });
+}
+function netTrack() {        // presence: who's in the room (the server drops you when the connection goes)
+  netRaw({ topic: netTopic(), event: 'presence', ref: String(++NET.ref), join_ref: NET.joinRef,
+    payload: { type: 'presence', event: 'track', payload: { name: (cfg.names[0] || '').trim().slice(0, 14), col: cfg.colors[0], host: NET.host, t: NET.t0 } } });
+}
+const netPeople = () => Object.entries(NET.pres).map(([id, m]) => ({ id, ...m })).sort((a, b) => (b.host - a.host) || (a.t - b.t));
+function netOpen(room, host) {
+  netClose();
+  if (!onlineOn()) { NET.status = 'Online play is not set up in this copy of the game.'; netUI(); return; }
+  if (isDefaultName(cfg.names[0] || '')) { NET.status = 'Type your name first.'; netUI(); document.getElementById('netName').focus(); return; }
+  Object.assign(NET, { room, host, pres: {}, joined: false, sawHost: false, race: null, t0: Date.now(), status: host ? 'Opening a room…' : `Joining ${room}…` });
+  NET.setup = host ? { track: TRACK.id, mode: cfg.mode === 'hot' ? 'hot' : 'race', laps: cfg.laps } : null;
+  const ws = new WebSocket(ONLINE.url.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(ONLINE.key) + '&vsn=1.0.0');
+  NET.ws = ws;
+  ws.onopen = () => {
+    NET.joinRef = String(++NET.ref);
+    netRaw({ topic: netTopic(), event: 'phx_join', ref: NET.joinRef, join_ref: NET.joinRef,
+      payload: { config: { broadcast: { ack: false, self: false }, presence: { key: NET.me, enabled: true }, postgres_changes: [], private: false } } });
+    NET.hb = setInterval(() => netRaw({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(++NET.ref) }), 25000);
+  };
+  ws.onmessage = e => { if (NET.ws !== ws) return; try { netMsg(JSON.parse(e.data)); } catch (x) { console.warn('online', x); } };
+  ws.onclose = () => { if (NET.ws !== ws) return; const r = NET.room; netClose(); NET.status = `Lost the connection to room ${r}.`; netUI(); };
+  ws.onerror = () => { if (NET.ws === ws) NET.status = 'Could not reach the online server.'; };
+  netUI();
+}
+function netClose() {        // leave the room (a race in progress goes on, the others just stop moving)
+  clearInterval(NET.hb); NET.hb = 0;
+  const ws = NET.ws; NET.ws = null;
+  if (ws) { try { ws.close(); } catch (e) {} }
+  Object.assign(NET, { room: null, joined: false, host: false, pres: {}, setup: null, status: '' });
+}
+function netMsg(m) {
+  if (m.topic !== netTopic()) return;
+  const p = m.payload || {};
+  if (m.event === 'phx_reply' && m.ref === NET.joinRef) {
+    if (p.status !== 'ok') {
+      const why = (p.response && (p.response.reason || p.response.message)) || 'refused';
+      netClose(); NET.status = 'The online server said no: ' + why; netUI(); return;
+    }
+    NET.joined = true; netTrack();
+    NET.status = NET.host ? 'Room open – send the code or the invite link to your friends.' : 'Connected – waiting for the host…';
+    if (!NET.host) {
+      const room = NET.room;
+      setTimeout(() => { if (NET.room === room && !NET.sawHost) { netClose(); NET.status = `There's no room "${room}" – check the code with whoever created it.`; netUI(); } }, 4000);
+    }
+    netUI(); return;
+  }
+  if (m.event === 'phx_error' || m.event === 'phx_close') { netClose(); NET.status = 'The room was closed by the server.'; netUI(); return; }
+  if (m.event === 'presence_state') {
+    NET.pres = {};
+    for (const k in p) { const ms = p[k].metas; if (ms && ms.length) NET.pres[k] = ms[ms.length - 1]; }
+    netPeopleChanged(Object.keys(NET.pres), []); return;
+  }
+  if (m.event === 'presence_diff') {
+    const leaves = Object.keys(p.leaves || {}), joins = Object.keys(p.joins || {});
+    for (const k of leaves) delete NET.pres[k];
+    for (const k of joins) { const ms = p.joins[k].metas; if (ms && ms.length) NET.pres[k] = ms[ms.length - 1]; }
+    netPeopleChanged(joins, leaves); return;
+  }
+  if (m.event === 'broadcast') netCastIn(p.event, p.payload || {});
+}
+function netPeopleChanged(joins, leaves) {
+  const ppl = netPeople(), host = ppl.find(q => q.host && q.id !== NET.me);
+  if (host) NET.sawHost = true;
+  if (NET.host) {
+    if (host && host.t < NET.t0) { NET.status = ''; netOpen(netNewCode(), true); return; }   // that code was taken: open another one
+    if (joins.some(k => k !== NET.me)) netCast('setup', NET.setup);                          // tell newcomers what's set up
+  } else if (NET.sawHost && !host) { netClose(); NET.status = 'The host left, so the room is closed.'; netUI(); return; }
+  for (const k of leaves) {
+    const P = NET.peers.get(k);
+    if (P && !NET.pres[k]) netGone(P);
+  }
+  netUI();
+}
+function netGone(P) {
+  if (P.left) return;
+  P.left = true;
+  if (P.car) { P.car.left = true; const me = humans()[0]; if (me && !P.car.finished && (state === 'race' || state === 'countdown')) say(me, P.car.name + ' LEFT THE RACE', '#ff9b9b', 2.2); }
+}
+function netCastIn(ev, d) {
+  if (ev === 'setup' && !NET.host) { NET.setup = d; netUI(); }
+  else if (ev === 'start' && !NET.host) netBegin(d);
+  else if (ev === 'st' && NET.race && d.r === NET.race.r) {
+    const P = NET.peers.get(d.id); if (!P) return;
+    const now = performance.now();
+    P.offs.push(now - d.t); if (P.offs.length > 40) P.offs.shift();
+    P.off = Math.min(...P.offs);                                // their clock → ours, at the quickest delivery seen
+    const b = P.buf;
+    if (b.length && d.t <= b[b.length - 1].t) return;
+    b.push(d); if (b.length > 40) b.shift();
+  } else if (ev === 'quit' && NET.race && d.r === NET.race.r) { const P = NET.peers.get(d.id); if (P) netGone(P); }
+}
+function netStartRace() {    // host: everyone in the room races now
+  if (!NET.host || !NET.joined) return;
+  const order = netPeople().slice(0, NET_MAX).map(q => ({ id: q.id, name: q.name, col: q.col }));
+  if (NET.setup.mode !== 'hot') order.sort(() => Math.random() - 0.5);       // random grid
+  const d = { r: Math.random().toString(36).slice(2, 8), ...NET.setup, order };
+  netCast('start', d); netBegin(d);
+}
+function netBegin(d) {
+  if (!d.order.some(o => o.id === NET.me) || !TRACKS[d.track]) return;    // joined after the start: wait for the next one
+  if (!NET.prev) NET.prev = { mode: cfg.mode, laps: cfg.laps, players: cfg.players, cup: cfg.cup };
+  cfg.mode = d.mode === 'hot' ? 'hot' : 'race'; cfg.laps = d.laps; cfg.players = 1; cfg.cup = false; cup = null;
+  NET.race = { r: d.r, order: d.order };
+  NET.peers = new Map(d.order.filter(o => o.id !== NET.me).map(o => [o.id, { id: o.id, meta: o, buf: [], offs: [], off: 0, car: null, left: false }]));
+  NET.lastSend = 0;
+  for (const id of ['onlineOv', 'recordsOv', 'helpOv', 'results', 'pause']) show(id, false);
+  if (TRACK.id !== d.track) {
+    document.getElementById('startBtn').textContent = 'Building track…';
+    setTimeout(() => { loadTrackData(d.track); if (GFX) GFX.buildScene(); startRace(false); }, 30);
+  } else startRace(false);
+}
+function netTick() {          // send my car ~10×/s (a bit less in a full room, to stay inside the free plan's limits)
+  const now = performance.now(), hz = NET.peers.size > 2 ? 7 : 10;
+  if (now - NET.lastSend < 1000 / hz) return;
+  NET.lastSend = now;
+  const c = humans()[0]; if (!c) return;
+  const r2 = v => Math.round(v * 100) / 100;
+  netCast('st', { id: NET.me, r: NET.race.r, t: Math.round(now), x: r2(c.x), y: r2(c.y), h: Math.round(c.h * 1000) / 1000, vx: r2(c.vx), vy: r2(c.vy), vf: r2(c.vf),
+    st: r2(c.steer), b: r2(c.brakeIn), bo: c.boostOn ? 1 : 0, d: c.drs ? 1 : 0, g: c.gear, p: Math.round(c.prog * 10) / 10, l: c.lapsDone,
+    f: c.finished ? 1 : 0, ft: c.finished ? Math.round(c.finishTime * 1000) / 1000 : 0, be: isFinite(c.best) ? Math.round(c.best * 1000) / 1000 : null, pe: c.penalty });
+}
+function netRemote(c, dt) {   // place another player's car at (now − NET_DELAY) on their clock
+  const P = c.peer, b = P.buf;
+  if (!b.length) return;
+  const rt = performance.now() - P.off - NET_DELAY;
+  while (b.length > 2 && b[1].t <= rt) b.shift();
+  const A = b[0], B = b[1], L = b[b.length - 1];
+  let x, y, h, vx, vy, prog, S;
+  if (B && rt <= B.t) {
+    const span = Math.max(1, B.t - A.t), u = clamp((rt - A.t) / span, 0, 1), Ts = span / 1000;
+    const u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = 3 * u2 - 2 * u3, h11 = u3 - u2;
+    x = h00 * A.x + h10 * Ts * A.vx + h01 * B.x + h11 * Ts * B.vx;
+    y = h00 * A.y + h10 * Ts * A.vy + h01 * B.y + h11 * Ts * B.vy;
+    let dh = B.h - A.h; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
+    h = A.h + dh * u; vx = A.vx + (B.vx - A.vx) * u; vy = A.vy + (B.vy - A.vy) * u; prog = A.p + (B.p - A.p) * u; S = u < 0.5 ? A : B;
+  } else {                     // late update: carry on briefly, then wait
+    const e = clamp((rt - L.t) / 1000, 0, 0.35);
+    x = L.x + L.vx * e; y = L.y + L.vy * e; h = L.h; vx = L.vx; vy = L.vy; prog = L.p + Math.hypot(L.vx, L.vy) * e; S = L;
+  }
+  c.px = c.x; c.py = c.y; c.x = x; c.y = y; c.h = h; c.vx = vx; c.vy = vy;
+  c.vf = S.vf; c.steer = S.st; c.brakeIn = S.b; c.boostOn = !!S.bo; c.drs = !!S.d; c.gear = S.g || 1;
+  c.wheelRot += c.vf * dt / 0.36;
+  if (c.hist.length && prog < c.hist[c.hist.length - 1].p - 50) c.hist = [];   // they restarted their hot lap
+  c.prog = prog; c.s = ((prog % T.L) + T.L) % T.L; c.ti = sToPoint(c.s, 0).i; c.localD = 0;
+  c.alt = groundAt(x, y);
+  if (!c.hist.length || c.prog > c.hist[c.hist.length - 1].p + 2) c.hist.push({ p: c.prog, t: simTime });
+  c.lapsDone = L.l; c.best = L.be == null ? Infinity : L.be; c.penalty = L.pe || 0;
+  if (c.best < session.bestLap) { session.bestLap = c.best; session.bestBy = c.id; }
+  if (L.f && !c.finished) { c.finished = true; c.finishTime = L.ft; c.finishedAt = simTime; finishOrder.push(c); c.place = finishOrder.length; }
+}
+// ---- the room screen
+function netShow() { netUI(); show('onlineOv', true); }
+function netJoinClick() {
+  const code = document.getElementById('netCode').value.toUpperCase().replace(/[^A-Z]/g, '');
+  if (code.length !== 4) { NET.status = 'Type the 4-letter room code.'; netUI(); return; }
+  netOpen(code, false);
+}
+function netUI() {
+  const $ = id => document.getElementById(id), inRoom = !!NET.room;
+  $('onlineBtn').textContent = inRoom ? '🌐 Room ' + NET.room : '🌐 Online';
+  const nm = $('netName'); if (document.activeElement !== nm) nm.value = isDefaultName(cfg.names[0] || '') ? '' : cfg.names[0];
+  $('netOut').style.display = inRoom ? 'none' : '';
+  $('netIn').style.display = inRoom ? '' : 'none';
+  $('netStatus').textContent = NET.status;
+  $('netStart').style.display = inRoom && NET.host ? '' : 'none';
+  $('netLeave').style.display = inRoom ? '' : 'none';
+  if (!inRoom) return;
+  $('netRoom').textContent = NET.room;
+  const ppl = netPeople();
+  $('netPlayers').innerHTML = ppl.map(q => `<span class="netp"><span class="chip" style="background:${(COLORS[q.col] || COLORS[0]).c}"></span>${esc(q.name || '?')}` +
+    `${q.host ? ' <small>HOST</small>' : ''}${q.id === NET.me ? ' <small>(you)</small>' : ''}</span>`).join('') || '<div class="sub" style="margin-top:10px">Connecting…</div>';
+  const S = NET.setup, box = $('netSetup');
+  if (!S) { box.innerHTML = '<div class="sub" style="margin-top:12px">Waiting for the host…</div>'; return; }
+  if (!NET.host) {
+    box.innerHTML = `<div class="sub" style="margin-top:12px">Next: <b style="color:#fff">${esc(TRACKS[S.track] ? TRACKS[S.track].title : S.track)}</b> · ${S.mode === 'hot' ? 'Hot lap together' : S.laps + '-lap race'} – the host starts it for everyone.</div>`;
+    return;
+  }
+  box.innerHTML = '<div class="opts" style="margin-top:12px"><div class="opt">Track <div class="seg" id="netTrackSeg"></div></div>' +
+    '<div class="opt">Mode <div class="seg" id="netModeSeg"></div></div><div class="opt" id="netLapsOpt">Laps <div class="seg" id="netLapsSeg"></div></div></div>';
+  const seg = (id, opts, cur, set) => opts.forEach(([v, label]) => {
+    const b = document.createElement('button'); b.textContent = label; if (v === cur) b.className = 'sel';
+    b.onclick = () => { set(v); netCast('setup', NET.setup); netUI(); }; $(id).appendChild(b);
+  });
+  seg('netTrackSeg', TRACK_ORDER.map(id => [id, TRACK_SHORT[id] || TRACKS[id].title]), S.track, v => S.track = v);
+  seg('netModeSeg', [['race', 'Race'], ['hot', 'Hot lap together']], S.mode, v => S.mode = v);
+  seg('netLapsSeg', [[1, '1'], [3, '3'], [5, '5'], [10, '10']], S.laps, v => S.laps = v);
+  $('netLapsOpt').style.display = S.mode === 'hot' ? 'none' : '';
+  $('netStart').disabled = !NET.joined;
+}
+document.getElementById('onlineBtn').onclick = () => netShow();
+document.getElementById('netCloseBtn').onclick = () => show('onlineOv', false);
+document.getElementById('netCreate').onclick = () => netOpen(netNewCode(), true);
+document.getElementById('netJoin').onclick = () => netJoinClick();
+document.getElementById('netStart').onclick = () => netStartRace();
+document.getElementById('netLeave').onclick = () => { netClose(); NET.status = 'You left the room.'; netUI(); };
+document.getElementById('netCopy').onclick = () => {
+  const link = location.origin + location.pathname + '?room=' + NET.room;
+  (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => { NET.status = 'Invite link copied: ' + link; netUI(); }, () => { NET.status = 'Invite link: ' + link; netUI(); });
+};
+document.getElementById('netName').oninput = e => {
+  cfg.names[0] = e.target.value.trim() || 'Player 1'; store.set('names', cfg.names); scheduleClaim();
+  const m = document.getElementById('name0'); if (m) m.value = e.target.value;
+  if (NET.joined) netTrack();
+};
+{ // invite link: …/?room=ABCD opens the room screen with the code filled in
+  const code = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  if (code.length === 4) {
+    document.getElementById('netCode').value = code;
+    setTimeout(() => { netShow(); if (!isDefaultName(cfg.names[0] || '')) netOpen(code, false); else { NET.status = 'Type your name, then press Join.'; netUI(); } }, 50);
+  }
+}
+
 // ---------------------------------------------------------------- loop
 let lastT = performance.now(), acc = 0;
 function frame(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
-  if ((state === 'countdown' || state === 'race') && !paused) {
+  if ((state === 'countdown' || state === 'race') && (!paused || NET.race)) {
     acc += dt;
     while (acc >= STEP) { step(STEP); acc -= STEP; if (state !== 'race' && state !== 'countdown') break; }
     updateParts(dt);

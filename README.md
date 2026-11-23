@@ -34,6 +34,7 @@ Karts have no ERS or DRS.
 - **CPU drivers**: add 1, 3 or 5 computer opponents to a race or Chaos, in 1- or 2-player mode. They pass slower cars, use items in Chaos, and their laps don't count for records. *Easy* drives about at the seeded record pace, *Medium* a bit faster, and *Hard* about as fast as the quickest human laps so far.
 - **🏆 Cup** (next to the tracks on the menu): race all five tracks in a row, Spa → Red Bull Ring → Monza → Silverstone → Algarve, with Race or Chaos rules. Points per race are 10-8-6-5-4-3-2, the same CPU drivers race the whole cup, and the final result has a podium.
 - **Cameras**: onboard, rear cam (fixed behind the car) or TV broadcast cameras, switchable during the race
+- **🌐 Online** (live multiplayer, from different houses): one player creates a room on the menu and shares the 4-letter code or the invite link (`…/?room=ABCD`). Everyone joins from their own browser (one player per browser, up to 6). The host picks the track and **Race** (1–10 laps, random grid, everyone gets the lights at the same moment) or **Hot lap together**, and starts it for everyone. Each car is driven on its own computer and sent ~10 times a second; the others appear about 0.16 s behind, smoothed. Cars don't touch each other yet, and pausing doesn't stop an online race. Laps still count for the records. It runs on the same free Supabase project as the leaderboard (Realtime broadcast + presence); see the limits of the free plan if you play a lot.
 
 ## Controls
 
