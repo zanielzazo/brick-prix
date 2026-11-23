@@ -1515,7 +1515,7 @@ function placeHot(c) {
     s0 = T.S[i] + 1;
   }
   const p = sToPoint(s0, 0), v = (T.vProf ? T.vProf[p.i] : 40) * 0.95;
-  c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = s0; c.prog = s0 - T.L; c.alt = p.alt;
+  c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = s0; c.prog = s0 - T.L; c.alt = p.alt; c.nextInv = false; c.lastOff = null;
   c.vx = Math.cos(p.h) * v; c.vy = Math.sin(p.h) * v; c.vf = v;
   while (c.gear < VEH.gears.length && v > VEH.gears[c.gear - 1] * 0.97) c.gear++;
 }
@@ -2172,7 +2172,11 @@ function wheelsOff(c) {
 function trackLimits(c, ds, dt) {
   const sp = Math.hypot(c.vx, c.vy), off = wheelsOff(c);
   if (!c.off) {
-    if (off && sp > 3) { c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false, i0: c.ti }; c.lastOff = c.prog; }
+    if (off && sp > 3) {
+      c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false, i0: c.ti }; c.lastOff = c.prog;
+      // hot lap: off in the last third before the line → the next lap is already gone; say so now, not at the line
+      if (isHot() && !c.cpu && !c.nextInv && ((-c.prog) % T.L + T.L) % T.L < T.L / 3) { c.nextInv = true; say(c, 'TRACK LIMITS · NEXT LAP INVALID', '#ff6b6b', 2.6); }
+    }
     return;
   }
   const o = c.off;
@@ -2197,7 +2201,7 @@ function trackLimits(c, ds, dt) {
     return;
   }
   c.lapInvalid = true;
-  if (isHot()) { if (c.timing) say(c, (gain > 3 * KS ? 'CORNER CUT' : 'TRACK LIMITS') + ' · LAP INVALID', '#ff6b6b', 2.4); return; }
+  if (isHot()) { if (c.timing) say(c, (gain > 3 * KS ? 'CORNER CUT' : 'TRACK LIMITS') + (c.nextInv ? ' · THIS LAP + NEXT LAP INVALID' : ' · LAP INVALID'), '#ff6b6b', 2.4); return; }
   if (gain > 3 * KS) {
     slowDown();
     strike(c, 'CORNER CUT');
@@ -2208,9 +2212,10 @@ function trackLimits(c, ds, dt) {
 // Hot lap, as in F1 qualifying: going beyond track limits in the last sector before the line (or crossing it
 // off the track) gains you speed for the next lap, so that lap starts already deleted.
 function lateLimits(c) {
-  if (c.off || (c.lastOff != null && c.prog - c.lastOff < T.L / 3)) {
+  if (c.nextInv || c.off || (c.lastOff != null && c.prog - c.lastOff < T.L / 3)) {
     c.lapInvalid = true; say(c, 'TRACK LIMITS BEFORE THE LINE · LAP INVALID', '#ff6b6b', 2.6);
   }
+  c.nextInv = false;
 }
 function strike(c, what) {
   if (isChaos()) return;
@@ -3902,7 +3907,8 @@ function drawHud(vp, c) {
     panel(x, 14, 220, 118);
     const cur = c.finished ? c.finishTime : c.timing ? simTime - c.lapStart : null;
     const inv = c.lapInvalid && !c.finished;
-    txt(c.finished ? 'TOTAL' : inv ? 'INVALID' : 'TIME', x + 14, 42, F(600, 12), inv ? '#ff6b6b' : '#9aa1ab');
+    const nxt = c.nextInv && isHot();                  // hot lap: the next lap is already deleted (track limits late in this one)
+    txt(c.finished ? 'TOTAL' : inv && nxt ? 'INVALID ×2' : inv ? 'INVALID' : nxt ? 'NEXT LAP ✕' : 'TIME', x + 14, 42, F(600, 12), inv || nxt ? '#ff6b6b' : '#9aa1ab');
     txt(fmt(cur), x + 206, 44, F(700, 22), inv ? '#ff8a8a' : '#fff', 'right');
     txt(c.lastInvalid ? 'LAST ✕' : 'LAST', x + 14, 70, F(600, 12), c.lastInvalid ? '#ff6b6b' : '#9aa1ab');
     txt(fmt(c.last), x + 206, 70, F(600, 16), c.lastInvalid ? '#ff8a8a' : '#ddd', 'right');
