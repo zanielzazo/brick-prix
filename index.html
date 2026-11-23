@@ -162,7 +162,7 @@
         <div><b>ERS</b> – hold boost for extra power; it recharges when you brake.</div>
         <div><b>DRS</b> – from lap 2, <span id="drsTip">cross the detection line</span> less than 1 s behind and the rear wing opens on the next straight. In single player it opens in every DRS zone.</div>
         <div><b>Slipstream</b> – sit right behind your rival for a tow.</div>
-        <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta. <kbd>R</kbd> restarts the run.</div>
+        <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Handling</b> – F1 has more grip and braking in slow corners and lets you over-rotate the car (and spin it); Arcade is forgiving. Records are kept separately.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
@@ -1316,8 +1316,10 @@ function placeHot(c) {
   const last = zs[zs.length - 1], prev = zs[zs.length - 2];
   let s0 = T.L - 400 * KS;
   if (last) {
-    s0 = T.S[last.a] - 300 * KS;                          // ~3 s of run-up before you have to brake
-    if (prev) s0 = Math.max(s0, T.S[prev.b] + 60 * KS);   // but never inside the corner before it
+    const prev2 = zs[zs.length - 3];
+    s0 = T.S[(prev || last).a] - 250 * KS;                  // run-up through the last two big braking zones
+    if (prev2) s0 = Math.max(s0, T.S[prev2.b] + 60 * KS);   // but never inside the corner before them
+    s0 = Math.max(s0, T.L - 1600 * KS);                     // and not much more than a minute of out-lap
   }
   if (TRACK.kart) {      // kart track: start where the straight leading to the line begins
     const curvy = s => { let k = 0; for (let q = -2; q <= 2; q++) k += Math.abs(T.K[sToPoint(s + q, 0).i]); return k / 5 > 1 / 30; };
@@ -1701,9 +1703,9 @@ function step(dt) {
 
     if (c.finished) return;
     if (!c.timing && c.prog >= 0) {          // hot lap: the timed lap starts at the line
-      c.timing = true; c.lapStart = c.sectorStart = simTime; c.lapInvalid = false; c.curSec = []; c.secIdx = 0; c.ers = 1;
-      c.curTrace = []; c.traceK = 0; c.off = null; c.gRec = []; c.gNext = 0;
-      say(c, 'TIMED LAP', GREEN, 1.4);
+      c.timing = true; c.lapStart = c.sectorStart = simTime; c.lapInvalid = false; c.curSec = []; c.secIdx = 0; c.ers = 1; lateLimits(c);
+      c.curTrace = []; c.traceK = 0; c.gRec = []; c.gNext = 0;
+      if (!c.lapInvalid) say(c, 'TIMED LAP', GREEN, 1.4);
     }
     if (c.timing) {
       const within = c.prog - c.lapsDone * T.L;
@@ -1778,7 +1780,7 @@ function wheelsOff(c) {
 function trackLimits(c, ds, dt) {
   const sp = Math.hypot(c.vx, c.vy), off = wheelsOff(c);
   if (!c.off) {
-    if (off && sp > 3) c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false, i0: c.ti };
+    if (off && sp > 3) { c.off = { prog: 0, dist: 0, back: 0, v0: sp, vMin: sp, grass: false, i0: c.ti }; c.lastOff = c.prog; }
     return;
   }
   const o = c.off;
@@ -1810,6 +1812,13 @@ function trackLimits(c, ds, dt) {
   } else if (o.grass || 1 - o.vMin / Math.max(o.v0, 1) > 0.10) {
     say(c, 'TRACK LIMITS · LAP TIME DELETED', '#ff9b9b', 1.8);
   } else strike(c, 'TRACK LIMITS');
+}
+// Hot lap, as in F1 qualifying: going beyond track limits in the last sector before the line (or crossing it
+// off the track) gains you speed for the next lap, so that lap starts already deleted.
+function lateLimits(c) {
+  if (c.off || (c.lastOff != null && c.prog - c.lastOff < T.L / 3)) {
+    c.lapInvalid = true; say(c, 'TRACK LIMITS BEFORE THE LINE · LAP INVALID', '#ff6b6b', 2.6);
+  }
 }
 function strike(c, what) {
   if (isChaos()) return;
@@ -1857,7 +1866,7 @@ function lapDone(c) {
     c.newRecord = true; say(c, 'TRACK RECORD  ' + fmt(lt), PURPLE, 3);
   }
   if (!invalid && !isChaos()) uploadLap(c, lt, lapRec);
-  if (isHot()) { c.ers = 1; return; }          // hot lap: a full battery for every timed lap
+  if (isHot()) { c.ers = 1; lateLimits(c); return; }          // hot lap: a full battery for every timed lap
   if (c.lapsDone >= cfg.laps || finishOrder.length) {
     c.finished = true; c.finishedAt = simTime; c.finishTime = simTime - raceStart;
     finishOrder.push(c); c.place = finishOrder.length;
