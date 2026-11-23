@@ -32,6 +32,13 @@
   #tBoost { right:calc(3vw + 10px); bottom:calc(6vh + min(120px,17vw) + 14px); width:min(76px,11vw); height:min(76px,11vw); background:rgba(92,208,255,.45); font-size:13px; }
   .tsm { top:10px; width:46px; height:46px; border-radius:12px; font-size:18px; }
   #tPause { left:calc(50% + 34px); } #tCam { left:calc(50% - 80px); } #tTilt { left:calc(50% - 23px); font-size:11px; }
+  #replayUI { position:fixed; left:0; right:0; bottom:0; z-index:6; display:none; padding:10px 14px 12px; background:linear-gradient(transparent, rgba(8,9,12,.88) 35%); color:#fff; font:600 13px "Segoe UI",sans-serif; }
+  #replayUI.show { display:block; }
+  #replayUI .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #replayUI button { background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:8px; padding:7px 11px; font:700 13px "Segoe UI",sans-serif; cursor:pointer; }
+  #replayUI button.sel { background:var(--red); border-color:var(--red); }
+  #replayUI input[type=range] { flex:1; min-width:160px; accent-color:#e10600; }
+  #replayFlash { position:fixed; inset:0; z-index:9; background:#fff; opacity:0; pointer-events:none; transition:opacity .35s; }
   #rotateHint { position:fixed; inset:0; z-index:8; display:none; align-items:center; justify-content:center; background:rgba(8,9,12,.85); color:#fff; font:800 22px "Segoe UI",sans-serif; text-align:center; padding:24px; }
   @media (orientation:portrait) { body.touch.racing #rotateHint { display:flex; } }
   #recordsOv { align-items:flex-start; overflow-y:auto; }   /* top-pinned, so the track tabs don't move between tracks */
@@ -125,6 +132,21 @@
   <button class="tb tsm" id="tTilt">TILT</button>
   <button class="tb tsm" id="tPause">⏸</button>
 </div>
+<div id="replayUI">
+  <div class="row" style="margin-bottom:8px">
+    <b id="rpTitle" style="color:#ff5a5a;letter-spacing:.08em">● REPLAY</b>
+    <input type="range" id="rpBar" min="0" max="1" step="0.01" value="0">
+    <span id="rpTime" style="font-variant-numeric:tabular-nums;min-width:110px;text-align:right">0.0 / 0.0 s</span>
+  </div>
+  <div class="row">
+    <button id="rpBack">⏪ 5s</button><button id="rpPlay">⏸</button><button id="rpFwd">5s ⏩</button>
+    <span style="margin-left:6px;opacity:.7">SPEED</span><span id="rpSpeeds"></span>
+    <span style="margin-left:6px;opacity:.7">CAMERA</span><span id="rpCams"></span>
+    <button id="rpPrev">◀</button><b id="rpCar" style="min-width:110px;text-align:center"></b><button id="rpNext">▶</button>
+    <button id="rpShot">📷 Photo</button><button id="rpHide">Hide UI (H)</button><button id="rpExit" style="margin-left:auto">✕ Exit (Esc)</button>
+  </div>
+</div>
+<div id="replayFlash"></div>
 <div id="rotateHint">Turn your phone sideways 🔄</div>
 
 <div id="menu" class="overlay show">
@@ -199,7 +221,7 @@
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
         <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records. <b>🏆 Cup</b> (next to the tracks): all five tracks in a row, points 10-8-6-5-4-3-2.</div>
         <div><b>Chaos</b> – mystery boxes give you Turbo Brick, Oil Slick, Loose Tyre, Safety Car (slows the leader), Local Shower (rain on the car ahead), Phantom (drive through anything), Brick Wall (drop behind) or Pit Stop (fixes you). The boost key fires it; whoever is behind gets better items. Blue pads boost you, yellow ramps launch you. <b>Drift</b>: hold throttle + brake while steering – blue sparks after 1 s, orange after 2 s – and let go for a boost. The weather changes every lap.</div>
-        <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · gamepads work too (triggers, stick, <kbd>Y</kbd> camera).</div>
+        <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · <kbd>T</kbd> telemetry · <kbd>V</kbd> replay (results/pause: TV, onboard, rear or free camera, 0.25×–4×) · <kbd>P</kbd> photo mode · gamepads work too.</div>
       </div>
       <div class="go"><button class="btn" id="helpCloseBtn">Close (Esc)</button></div>
     </div>
@@ -245,6 +267,7 @@
         <button class="btn" id="resumeBtn" style="width:100%">Resume (Esc)</button>
         <button class="btn ghost" id="restartBtn" style="width:100%">Restart race (R)</button>
         <button class="btn ghost" id="telPauseBtn" style="width:100%">📈 Telemetry (T)</button>
+        <button class="btn ghost" id="replayPauseBtn" style="width:100%">🎬 Replay (V) · 📷 Photo mode (P)</button>
         <button class="btn ghost" id="quitBtn" style="width:100%">Main menu (Q)</button>
       </div>
     </div>
@@ -264,6 +287,7 @@
         <button class="btn" id="rematchBtn">Rematch (Enter)</button>
         <button class="btn ghost" id="menuBtn">Menu (Esc)</button>
         <button class="btn ghost" id="telResBtn">📈 Telemetry (T)</button>
+        <button class="btn ghost" id="replayResBtn">🎬 Replay (V)</button>
       </div>
     </div>
   </div>
@@ -1531,7 +1555,7 @@ function startRace(rematch) {
     grid.forEach((c, slot) => placeCar(c, slot));
   }
   parts = []; finishOrder = []; resultsAt = 0;
-  taxis = []; taxiT = 3;
+  taxis = []; taxiT = 3; rec = { frames: [], next: 0 };
   hazards = []; boxes = []; pads = []; ramps = []; weather = 'dry'; weatherLap = 0; wxMsgT = 0;
   if (cfg.mode === 'chaos') { placeBoxes(); placePads(); placeRamps(); weather = rollWeather(true); if (weather !== 'dry') wxMsgT = 4; }
   session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
@@ -1607,6 +1631,97 @@ function setPause(p) {
   if (state !== 'race' && state !== 'countdown') return;
   paused = p; show('pause', p); AU.pause(p);
 }
+// ---------------------------------------------------------------- replays & photo mode
+// Every car is recorded 30 times a second (position, heading, pitch, steering, wheels, speed, brake). The replay
+// plays it back through the TV cameras, onboard, rear or a free orbit camera, at 0.25×–4×; 📷 saves a PNG.
+const REC_DT = 1 / 30, REC_F = 10, REC_MAX = 30 * 60 * 25;
+let rec = null, replay = null;
+function recFrame() {
+  if (!rec || (state !== 'race' && state !== 'countdown') || simTime < rec.next) return;
+  rec.next = simTime + REC_DT;
+  const f = new Float32Array(cars.length * REC_F);
+  cars.forEach((c, i) => { const o = i * REC_F; f[o] = c.x; f[o + 1] = c.y; f[o + 2] = c.alt; f[o + 3] = c.h; f[o + 4] = c.pitch; f[o + 5] = c.delta; f[o + 6] = c.wheelRot % 6283.2; f[o + 7] = c.vf; f[o + 8] = c.s; f[o + 9] = c.brakeIn; });
+  rec.frames.push(f); if (rec.frames.length > REC_MAX) rec.frames.shift();
+}
+const RP_SPEEDS = [0.25, 0.5, 1, 2, 4], RP_CAMS = [['tv', 'TV'], ['onboard', 'Onboard'], ['rear', 'Rear'], ['free', 'Free']];
+function openReplay(photo) {
+  if (!rec || rec.frames.length < 2 || (state !== 'race' && state !== 'countdown' && state !== 'results')) return;
+  const end = (rec.frames.length - 1) * REC_DT;
+  replay = { prevState: state, prevPaused: paused, saved: cars.map(c => ({ ...c })), t: photo ? end : 0, end, speed: 1, playing: !photo, follow: Math.max(0, cars.indexOf(humans()[0])), cam: photo ? 'free' : 'tv', orbit: { yaw: cars[0] ? cars[0].h + Math.PI * 0.8 : 0, pitch: 0.28, dist: TRACK.kart ? 7 : 13 }, ui: true };
+  state = 'replay'; paused = false; AU.pause(true); parts = [];
+  show('pause', false); show('results', false); show('telOv', false);
+  document.getElementById('replayUI').classList.add('show');
+  document.getElementById('rpBar').max = end.toFixed(2);
+  buildReplayUI(); applyReplayFrame();
+}
+function closeReplay() {
+  if (!replay) return;
+  cars.forEach((c, i) => Object.assign(c, replay.saved[i]));
+  state = replay.prevState; paused = replay.prevPaused;
+  document.getElementById('replayUI').classList.remove('show');
+  if (state === 'results') show('results', true);
+  else if (state === 'race' || state === 'countdown') { paused = true; show('pause', true); AU.pause(true); }
+  replay = null;
+}
+function applyReplayFrame() {
+  const R2 = replay, F = rec.frames, x = clamp(R2.t / REC_DT, 0, F.length - 1), i0 = Math.floor(x), i1 = Math.min(F.length - 1, i0 + 1), a = x - i0;
+  const A = F[i0], B = F[i1];
+  cars.forEach((c, i) => {
+    const o = i * REC_F; if (o + REC_F > A.length) return;
+    const lerp = k => A[o + k] + (B[o + k] - A[o + k]) * a;
+    let dh = B[o + 3] - A[o + 3]; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+    let dw = B[o + 6] - A[o + 6]; if (Math.abs(dw) > 100) dw = 0;
+    c.x = lerp(0); c.y = lerp(1); c.alt = lerp(2); c.h = A[o + 3] + dh * a; c.pitch = lerp(4); c.delta = lerp(5); c.wheelRot = A[o + 6] + dw * a;
+    c.vf = lerp(7); c.s = lerp(8); c.brakeIn = lerp(9); c.vx = Math.cos(c.h) * c.vf; c.vy = Math.sin(c.h) * c.vf;
+    c.steer = clamp(c.delta * 3, -1, 1); c.ghost = 0; c.phantomT = 0; c.drs = false; c.boostOn = false; c.air = false;
+  });
+  document.getElementById('rpBar').value = R2.t.toFixed(2);
+  document.getElementById('rpTime').textContent = `${R2.t.toFixed(1)} / ${R2.end.toFixed(1)} s`;
+  const c = cars[R2.follow]; document.getElementById('rpCar').textContent = c ? c.name : '';
+}
+function buildReplayUI() {
+  const R2 = replay;
+  const mk = (id, list, cur, set) => { const el = document.getElementById(id); el.innerHTML = ''; list.forEach(([v, l]) => { const b = document.createElement('button'); b.textContent = l; if (v === cur) b.className = 'sel'; b.onclick = () => { set(v); buildReplayUI(); }; el.appendChild(b); }); };
+  mk('rpSpeeds', RP_SPEEDS.map(v => [v, v + '×']), R2.speed, v => R2.speed = v);
+  mk('rpCams', RP_CAMS, R2.cam, v => { R2.cam = v; GFX.replaySnap(); });
+  document.getElementById('rpPlay').textContent = R2.playing ? '⏸' : '▶';
+  document.getElementById('replayUI').style.opacity = R2.ui ? 1 : 0;
+}
+function replaySeek(d) { replay.t = clamp(replay.t + d, 0, replay.end); applyReplayFrame(); GFX.replaySnap(); }
+function replayFollow(d) { replay.follow = (replay.follow + d + cars.length) % cars.length; applyReplayFrame(); GFX.replaySnap(); }
+function replayKey(code) {
+  const R2 = replay;
+  if (code === 'Escape') closeReplay();
+  else if (code === 'Space') { R2.playing = !R2.playing; if (R2.playing && R2.t >= R2.end) R2.t = 0; buildReplayUI(); }
+  else if (code === 'ArrowLeft') replaySeek(-5);
+  else if (code === 'ArrowRight') replaySeek(5);
+  else if (code === 'ArrowUp') replayFollow(1);
+  else if (code === 'ArrowDown') replayFollow(-1);
+  else if (code === 'KeyC') { R2.cam = RP_CAMS[(RP_CAMS.findIndex(c => c[0] === R2.cam) + 1) % RP_CAMS.length][0]; GFX.replaySnap(); buildReplayUI(); }
+  else if (/^Digit[1-5]$/.test(code)) { R2.speed = RP_SPEEDS[+code.slice(5) - 1]; buildReplayUI(); }
+  else if (code === 'KeyP') takePhoto();
+  else if (code === 'KeyH') { R2.ui = !R2.ui; buildReplayUI(); }
+}
+function takePhoto() {
+  const ui = replay ? replay.ui : true; if (replay) replay.ui = false;
+  GFX.render(0, [{ x: 0, y: 0, w: W, h: H }]);
+  const url = document.getElementById('gl').toDataURL('image/png');
+  if (replay) replay.ui = ui;
+  const a = document.createElement('a'); a.href = url; a.download = `brick-prix-${TRACK.id}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`; a.click();
+  const fl = document.getElementById('replayFlash'); fl.style.transition = 'none'; fl.style.opacity = 0.8; requestAnimationFrame(() => { fl.style.transition = 'opacity .35s'; fl.style.opacity = 0; });
+}
+// free camera: drag to orbit, wheel / pinch-drag to zoom
+(() => {
+  let drag = null;
+  addEventListener('pointerdown', e => { if (!replay || replay.cam !== 'free' || e.target.closest('#replayUI')) return; drag = { x: e.clientX, y: e.clientY }; });
+  addEventListener('pointermove', e => {
+    if (!drag || !replay) return;
+    replay.orbit.yaw += (e.clientX - drag.x) * 0.008; replay.orbit.pitch = clamp(replay.orbit.pitch + (e.clientY - drag.y) * 0.006, -0.1, 1.45);
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  addEventListener('pointerup', () => drag = null);
+  addEventListener('wheel', e => { if (!replay || replay.cam !== 'free') return; replay.orbit.dist = clamp(replay.orbit.dist * (e.deltaY > 0 ? 1.12 : 0.89), 2.5, 600); }, { passive: true });
+})();
 // ---------------------------------------------------------------- lap telemetry
 // Last completed lap against a reference – the record ghost when one is loaded, otherwise your previous best –
 // from the time at every 10 m: speed trace, gap along the lap, braking zones, sectors and the speed at each turn.
@@ -1717,6 +1832,7 @@ function cycleCam(c) {
 function onKeyPress(code) {
   if (code === 'KeyM') { AU.toggleMute(); return; }
   if (document.getElementById('telOv').classList.contains('show')) { if (code === 'Escape' || code === 'KeyT' || code === 'Enter') closeTel(); return; }
+  if (state === 'replay') { replayKey(code); return; }
   if (state === 'menu') {
     if (document.getElementById('recordsOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('recordsOv', false); return; }
     if (document.getElementById('helpOv').classList.contains('show')) { if (code === 'Escape' || code === 'Enter') show('helpOv', false); return; }
@@ -1725,6 +1841,7 @@ function onKeyPress(code) {
   }
   if (state === 'results') {
     if (code === 'KeyT') { openTel(); return; }
+    if (code === 'KeyV') { openReplay(false); return; }
     if (code === 'Enter' || code === 'NumpadEnter') resultsNext();
     else if (code === 'Escape') toMenu();
     return;
@@ -1734,6 +1851,8 @@ function onKeyPress(code) {
     else if (code === 'KeyR') startRace(false);
     else if (code === 'KeyQ') toMenu();
     else if (code === 'KeyT') openTel();
+    else if (code === 'KeyV') openReplay(false);
+    else if (code === 'KeyP') openReplay(true);
     return;
   }
   if (code === 'KeyT' && state === 'race') { openTel(); return; }
@@ -2013,6 +2132,7 @@ function step(dt) {
   }
   for (let a = 0; a < cars.length; a++) for (let b = a + 1; b < cars.length; b++) collideCars(cars[a], cars[b]);
   if (TRACK.airport && (state === 'race' || state === 'countdown')) airportStep(dt);
+  recFrame();
   cars.forEach(c => {
     if (c.ghost > 0) c.ghost -= dt; c.msgT -= dt; c.shake = Math.max(0, c.shake - dt * 2.5);
     if (c.turboT > 0) c.turboT -= dt; if (c.spinT > 0) c.spinT -= dt; if (c.scT > 0) c.scT -= dt;
@@ -2857,6 +2977,7 @@ function buildGfx() {
   const cameras = [new THREE.PerspectiveCamera(50, 1, 0.3, 6000), new THREE.PerspectiveCamera(50, 1, 0.3, 6000)];
   const demoCam = new THREE.PerspectiveCamera(40, 1, 0.3, 6000);
   const demo = { s: 0, cam: { station: -1, look: V(0, 0, 0), fov: 30, snap: true, pos: V(0, 0, 0), hd: 0 } };
+  const rpCam = { station: -1, look: V(0, 0, 0), fov: 30, snap: true, pos: V(0, 0, 0), hd: 0 };      // replay camera state
 
   // canvas texture that can use the Aeroficial logo; drawn again once the logo image has loaded
   const logoImg = new Image(); logoImg.src = AERO_LOGO;
@@ -3617,6 +3738,26 @@ function buildGfx() {
     }
     syncCars(); syncParts(); syncChaos();
     lightMats.forEach((m, i) => m.color.set(state === 'countdown' && i < cd.lights ? '#ff1a1a' : '#2a0707'));
+    if (state === 'replay' && replay) {
+      const c = cars[replay.follow] || cars[0], cam = cameras[0], aspect = W / H; cam.aspect = aspect;
+      if (replay.cam === 'tv') aimTV(cam, rpCam, c, dt, aspect);
+      else if (replay.cam === 'rear') aimRear(cam, rpCam, c);
+      else if (replay.cam === 'onboard') aimOnboard(cam, rpCam, c);
+      else {
+        const o = replay.orbit, tx = c.x, ty = c.alt + (TRACK.kart ? 0.6 : 1), tz = c.y, cp = Math.cos(o.pitch);
+        cam.position.set(tx + Math.cos(o.yaw) * cp * o.dist, Math.max(ty + Math.sin(o.pitch) * o.dist, groundAt(tx, tz) + 0.4), tz + Math.sin(o.yaw) * cp * o.dist);
+        cam.lookAt(tx, ty, tz); cam.fov = 50;
+      }
+      cam.updateProjectionMatrix();
+      renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H);
+      pMat.uniforms.scale.value = wxMat.uniforms.scale.value = H * pr / (2 * Math.tan(cam.fov * Math.PI / 360));
+      wxMat.uniforms.cpos.value.copy(cam.position);
+      const own = carMeshes[cars.indexOf(c)], hideHead = !!(own && own.head && replay.cam === 'onboard');
+      if (hideHead) own.head.visible = false;
+      renderer.render(scene, cam);
+      if (hideHead) own.head.visible = true;
+      return [cam];
+    }
     const cams = [];
     humans().forEach((c, i) => {
       const vp = vps[i], cam = cameras[i], aspect = vp.w / vp.h;
@@ -3640,7 +3781,7 @@ function buildGfx() {
     return cams;
   }
   buildScene();
-  return { reset, addSkid, resize, render, buildScene, planeInfo: () => planes.map(p => ({ type: p.type, liv: p.liv, kind: p.kind, s: Math.round(p.s), x: Math.round(p.mesh.position.x), y: Math.round(p.mesh.position.y), z: Math.round(p.mesh.position.z), parts: p.mesh.children.length })) };
+  return { reset, addSkid, resize, render, buildScene, replaySnap: () => { rpCam.snap = true; rpCam.station = -1; }, planeInfo: () => planes.map(p => ({ type: p.type, liv: p.liv, kind: p.kind, s: Math.round(p.s), x: Math.round(p.mesh.position.x), y: Math.round(p.mesh.position.y), z: Math.round(p.mesh.position.z), parts: p.mesh.children.length })) };
 }
 
 // ---------------------------------------------------------------- HUD (2D overlay)
@@ -3896,6 +4037,15 @@ function render(dt) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
   if (!GFX) { ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, W, H); return; }
+  if (state === 'replay') {
+    GFX.render(dt, [{ x: 0, y: 0, w: W, h: H }]);
+    if (replay && replay.ui) {
+      const c = cars[replay.follow];
+      panel(14, 14, 230, 46, 8); ctx.fillStyle = Math.floor(performance.now() / 500) % 2 ? '#ff2a2a' : '#7a1010'; ctx.beginPath(); ctx.arc(30, 37, 6, 0, 7); ctx.fill();
+      txt('REPLAY', 44, 33, F(800, 14), '#fff'); txt((c ? c.name : '') + ' · ' + Math.round(Math.abs(c ? c.vf : 0) * 3.6) + ' km/h' + (replay.speed !== 1 ? ' · ' + replay.speed + '×' : ''), 44, 52, F(600, 12), '#c8ccd2');
+    }
+    return;
+  }
   const vps = viewports();
   const cams = GFX.render(dt, vps);
   if (state === 'menu') { AU.update(humans(), false); return; }
@@ -4225,6 +4375,17 @@ document.getElementById('restartBtn').onclick = () => startRace(false);
 document.getElementById('quitBtn').onclick = () => toMenu();
 setupTouch();
 document.getElementById('telPauseBtn').onclick = () => openTel();
+document.getElementById('replayPauseBtn').onclick = () => openReplay(false);
+document.getElementById('replayResBtn').onclick = () => openReplay(false);
+document.getElementById('rpBack').onclick = () => replaySeek(-5);
+document.getElementById('rpFwd').onclick = () => replaySeek(5);
+document.getElementById('rpPlay').onclick = () => replayKey('Space');
+document.getElementById('rpPrev').onclick = () => replayFollow(-1);
+document.getElementById('rpNext').onclick = () => replayFollow(1);
+document.getElementById('rpShot').onclick = () => takePhoto();
+document.getElementById('rpHide').onclick = () => replayKey('KeyH');
+document.getElementById('rpExit').onclick = () => closeReplay();
+document.getElementById('rpBar').oninput = e => { if (replay) { replay.t = +e.target.value; replay.playing = false; buildReplayUI(); applyReplayFrame(); } };
 document.getElementById('telResBtn').onclick = () => openTel();
 document.getElementById('telCloseBtn').onclick = () => closeTel();
 document.getElementById('telPlayerBtn').onclick = () => { telWho = 1 - telWho; drawTel(); };
@@ -4271,6 +4432,9 @@ function frame(t) {
     while (acc >= STEP) { step(STEP); acc -= STEP; if (state !== 'race' && state !== 'countdown') break; }
     updateParts(dt);
     cars.forEach(c => { if (c.lastSecT > 0) c.lastSecT -= dt; });
+  } else if (state === 'replay' && replay) {
+    acc = 0;
+    if (replay.playing) { replay.t += dt * replay.speed; if (replay.t >= replay.end) { replay.t = replay.end; replay.playing = false; buildReplayUI(); } applyReplayFrame(); }
   } else {
     acc = 0;
     if (state === 'menu' || state === 'results') { readInput(0); readInput(1); }
