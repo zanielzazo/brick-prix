@@ -445,7 +445,7 @@ const TRACKS = {
     id: 'chaves', title: 'CHAVES', full: 'Kartódromo de Chaves', place: 'Chaves, Portugal', km: '0.59 km', turns: 0, recordKey: 'record.chaves', kart: true,
     raw: CHAVES_RAW, startLine: [69.5, -27.8], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,
     // home of three friends: Zazo (the fast one), Hugo (the middle one) and Filipe (the other one)
-    turnNames: { first: 'Curva do Zazo', middle: 'Curva do Hugo', tightest: 'Gancho do Filipe' },
+    hotFrom: '9', turnNames: { first: 'Curva do Zazo', middle: 'Curva do Hugo', tightest: 'Gancho do Filipe' },
     jokes: {
       boards: [
         ['ZAZO 👑', 'REI DE CHAVES', '#ffc83d'],
@@ -1507,6 +1507,12 @@ function placeHot(c) {
     let best = -0.4 * T.L, bk = Infinity;
     for (let s = -0.45 * T.L; s <= -0.35 * T.L; s += 1) { const k = curv(s); if (k < bk) { bk = k; best = s; } }
     s0 = T.L + best;
+  }
+  const from = TRACK.hotFrom && T.labels.find(l => l.ref === TRACK.hotFrom);
+  if (from) {            // track that names its own start: on the first straight bit after that corner
+    let i = from.i;
+    for (let d = 0; d < 80 && Math.abs(T.K[i]) > 0.02; d++) i = (i + 1) % T.N;
+    s0 = T.S[i] + 1;
   }
   const p = sToPoint(s0, 0), v = (T.vProf ? T.vProf[p.i] : 40) * 0.95;
   c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = s0; c.prog = s0 - T.L; c.alt = p.alt;
