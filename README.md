@@ -47,6 +47,8 @@ Karts have no ERS or DRS.
 
 Press **T** (or 📈 Telemetry on the pause or results screen) for the lap telemetry: your last lap's speed trace against a reference (the record ghost in hot lap, otherwise your previous best), the gap along the lap, sector deltas, where you braked and where the reference started braking, and the minimum speed in every turn.
 
+**On a phone or tablet** (landscape): drag the left pad to steer (or tap TILT and tilt the phone), GAS and BRAKE bottom right, ERS/item above them, camera and pause at the top. Starting a race goes full screen.
+
 You can also use gamepads (right trigger to accelerate, left trigger to brake, stick to steer, Y for the camera). Esc pauses and M mutes. In Hot lap, R restarts the run and G switches the ghost (record / my best / off).
 
 ## Race rules
