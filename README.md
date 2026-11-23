@@ -26,15 +26,15 @@ Karts have no ERS or DRS.
 
 **Monaco** is the street circuit (3.3 km, 19 turns) from OpenStreetMap: barriers right at the edge of the road the whole way round (so there's no track-limits rule; the walls are the limit), the climb from Sainte Dévote up Beau Rivage to the Casino, the Grand Hotel hairpin, and a real tunnel after Portier where the daylight fades out and the lamps take over. The harbour beside the Piscine and La Rascasse is full of yachts, the sea runs along the tunnel, and apartment blocks climb the hill all round. DRS on the pit straight. It isn't part of the Cup.
 
-**Stunt tracks** are short made-up kart circuits for time attack, Trackmania-style (about 0.55–0.65 km, laps of roughly 28–33 s). Each one is generated from a fixed seed, so everyone gets the same five: straights and tight corners between tyre walls (no track-limits rule), then the stunt bits on top: full-width **boost pads**, **jump ramps** (about a second of airtime, no steering in the air), patches of **ice** (very little grip) or **dirt** (less grip), hills (Rollercoaster climbs 11 m), and two **checkpoint** gates that show your split against your best lap (blue ahead, red behind). Each track has **medals**: 🏁 Author (Claude's lap), 🥇 Gold (+7%), 🥈 Silver (+20%) and 🥉 Bronze (+45%); the medals and times are on the menu, and the best medal you've won shows on the track button. They work in every mode (hot lap is the time attack; races, Chaos and online too), but not in the Cup or the Daily. Their online leaderboards need the stunt-track lines of `supabase.sql` run once.
+**Stunt tracks** are short made-up kart circuits for time attack, Trackmania-style (about 0.55–0.65 km, runs of roughly 30–35 s). **Hot lap is the time attack, as in Trackmania: a standing start on the line, three lights, the clock starts at GO and stops at the line, then the next run starts by itself** (R restarts at any time). Races start from the grid as usual. Each one is generated from a fixed seed, so everyone gets the same five: straights and tight corners between tyre walls (no track-limits rule), then the stunt bits on top: full-width **boost pads**, **jump ramps** (about a second of airtime, no steering in the air), patches of **ice** (very little grip) or **dirt** (less grip), hills (Rollercoaster climbs 11 m), and two **checkpoint** gates that show your split against your best lap (blue ahead, red behind). Each track has **medals**: 🏁 Author (Claude's lap), 🥇 Gold (+7%), 🥈 Silver (+20%) and 🥉 Bronze (+45%); the medals and times are on the menu, and the best medal you've won shows on the track button. They work in every mode (hot lap is the time attack; races, Chaos and online too), but not in the Cup or the Daily. Their online leaderboards need the stunt-track lines of `supabase.sql` run once.
 
 | Stunt track | Length | Stunts | 🏁 Author | 🥇 Gold | 🥈 Silver | 🥉 Bronze |
 |---|---|---|---|---|---|---|
-| Brickyard | 612 m | 2 ramps, 3 pads | 0:28.217 | 0:30.2 | 0:33.9 | 0:41.0 |
-| Icebox (snow) | 558 m | 1 ramp, 3 pads, 2 ice patches | 0:31.917 | 0:34.2 | 0:38.4 | 0:46.3 |
-| Dust Bowl (desert) | 656 m | 2 ramps, 3 pads, 2 dirt patches | 0:32.617 | 0:35.0 | 0:39.2 | 0:47.3 |
-| Rollercoaster | 629 m | 2 ramps, 2 pads, 1 dirt patch, 11 m of hills | 0:30.858 | 0:33.1 | 0:37.1 | 0:44.8 |
-| Boost Alley | 625 m | 3 ramps, 6 pads, 1 ice patch | 0:30.967 | 0:33.2 | 0:37.2 | 0:45.0 |
+| Brickyard | 612 m | 2 ramps, 3 pads | 0:29.625 | 0:31.7 | 0:35.6 | 0:43.0 |
+| Icebox (snow) | 558 m | 1 ramp, 3 pads, 2 ice patches | 0:33.625 | 0:36.0 | 0:40.4 | 0:48.8 |
+| Dust Bowl (desert) | 656 m | 2 ramps, 3 pads, 2 dirt patches | 0:34.500 | 0:37.0 | 0:41.4 | 0:50.1 |
+| Rollercoaster | 629 m | 2 ramps, 2 pads, 1 dirt patch, 11 m of hills | 0:33.117 | 0:35.5 | 0:39.8 | 0:48.1 |
+| Boost Alley | 625 m | 3 ramps, 6 pads, 1 ice patch | 0:32.825 | 0:35.2 | 0:39.4 | 0:47.6 |
 
 ## Modes
 

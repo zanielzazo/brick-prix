@@ -240,7 +240,7 @@
         <div><b>🌐 Online</b> – one of you creates a room and shares the 4-letter code (or the invite link); everyone joins from their own browser and the host picks the track, Race or Hot lap together, and starts it for everyone. Each car is driven on its own computer and the others appear live (a fraction of a second behind). No contact between cars yet; pausing doesn't stop an online race.</div>
         <div><b>Records</b> – set your name, drive a valid lap, and your personal best goes on the online leaderboard ("Player 1/2" isn't uploaded).</div>
         <div><b>CPU drivers</b> – add 1, 3 or 5 computer opponents (Easy / Medium / Hard) to a race or Chaos. They race hard but fair, pass slower cars and use items too; their laps don't count for records. <b>🏆 Cup</b> (next to the tracks): all six tracks in a row, points 10-8-6-5-4-3-2.</div>
-        <div><b>Stunt tracks</b> – short time-attack circuits: full-width boost pads, big jump ramps, ice and dirt patches, hills and two checkpoints with your split against your best lap. Beat the medal times (🏁 Author, 🥇 Gold, 🥈 Silver, 🥉 Bronze) shown on the menu; Hot lap is the time attack, <kbd>R</kbd> restarts.</div>
+        <div><b>Stunt tracks</b> – short time-attack circuits: full-width boost pads, big jump ramps, ice and dirt patches, hills and two checkpoints with your split against your best lap. Beat the medal times (🏁 Author, 🥇 Gold, 🥈 Silver, 🥉 Bronze) shown on the menu. Hot lap is the time attack: a standing start, the clock starts at GO, and after the line the next run starts by itself; <kbd>R</kbd> restarts.</div>
         <div><b>Chaos</b> – mystery boxes give you Turbo Brick, Oil Slick, Loose Tyre, Safety Car (slows the leader), Local Shower (rain on the car ahead), Phantom (drive through anything), Brick Wall (drop behind) or Pit Stop (fixes you). The boost key fires it; whoever is behind gets better items. Blue pads boost you, yellow ramps launch you. <b>Drift</b>: hold throttle + brake while steering – blue sparks after 1 s, orange after 2 s – and let go for a boost. The weather changes every lap.</div>
         <div><b>Keys</b> – <kbd>Esc</kbd> pause · <kbd>M</kbd> mute · <kbd>T</kbd> telemetry · <kbd>V</kbd> replay (results/pause: TV, onboard, rear or free camera, 0.25×–4×) · <kbd>P</kbd> photo mode · gamepads work too.</div>
       </div>
@@ -601,15 +601,15 @@ const TRACKS = {
       kerb: ['#ffd400', '#1b1b1b'], tyres: ['#e9e9e9', '#d62828', '#e9e9e9'], gantry: AERO.navy },
   },
   // Stunt tracks (see stuntDef): seed = the layout, author = Claude's lap (the medal times are worked out from it)
-  ks1: stuntDef('ks1', 1, 'Brickyard', { seed: 60, n: 9, r: 100, straight: 60, ramps: 2, pads: 3, hills: 3, author: 28.217 },
+  ks1: stuntDef('ks1', 1, 'Brickyard', { seed: 60, n: 9, r: 100, straight: 60, ramps: 2, pads: 3, hills: 3, author: 29.625 },
     { sky: '#94c3ee', fog: '#c5dbee', hemiGround: '#5a6b3a', grass: ['#4f8a3a', '#57923f'], outerNear: '#5f8a42', outerFar: '#8a8a55', ground: '#6f7f45' }),
-  ks2: stuntDef('ks2', 2, 'Icebox', { seed: 38, n: 10, r: 98, straight: 55, ramps: 1, pads: 3, ice: 2, hills: 3, author: 31.917 },
+  ks2: stuntDef('ks2', 2, 'Icebox', { seed: 38, n: 10, r: 98, straight: 55, ramps: 1, pads: 3, ice: 2, hills: 3, author: 33.625 },
     { sky: '#bcd6ee', fog: '#e1ebf3', hemiGround: '#a9b4bc', grass: ['#e8eef2', '#dfe7ec'], outerNear: '#e9eff3', outerFar: '#cfd9e0', ground: '#dfe6eb', trees: 'spruce', treeCount: 160 }),
-  ks3: stuntDef('ks3', 3, 'Dust Bowl', { seed: 92, n: 9, r: 105, straight: 60, ramps: 2, pads: 3, dirt: 2, hills: 4, author: 32.617 },
+  ks3: stuntDef('ks3', 3, 'Dust Bowl', { seed: 92, n: 9, r: 105, straight: 60, ramps: 2, pads: 3, dirt: 2, hills: 4, author: 34.5 },
     { sky: '#9fd0f5', fog: '#ecdcc0', hemiGround: '#9a7a4f', grass: ['#d6b07a', '#cfa872'], outerNear: '#d9b47c', outerFar: '#c79a5e', ground: '#c9a06a', treeCount: 25, bumps: 1.2 }),
-  ks4: stuntDef('ks4', 4, 'Rollercoaster', { seed: 110, n: 10, r: 100, straight: 60, ramps: 2, pads: 2, dirt: 1, hills: 13, author: 30.858 },
+  ks4: stuntDef('ks4', 4, 'Rollercoaster', { seed: 110, n: 10, r: 100, straight: 60, ramps: 2, pads: 2, dirt: 1, hills: 13, author: 33.117 },
     { sky: '#a9c9e8', fog: '#d6dde2', hemiGround: '#6b5a3a', grass: ['#6f8f3a', '#789845'], outerNear: '#8a8a40', outerFar: '#a0703a', ground: '#8a7a45', treeCount: 200, hills: 70 }),
-  ks5: stuntDef('ks5', 5, 'Boost Alley', { seed: 232, n: 9, r: 88, sx: 1.5, straight: 55, ramps: 3, pads: 6, ice: 1, hills: 5, author: 30.967 },
+  ks5: stuntDef('ks5', 5, 'Boost Alley', { seed: 232, n: 9, r: 88, sx: 1.5, straight: 55, ramps: 3, pads: 6, ice: 1, hills: 5, author: 32.825 },
     { sky: '#f2b48e', fog: '#f1cdb0', hemiGround: '#6a4a5a', grass: ['#45703a', '#4c783f'], outerNear: '#5a7a42', outerFar: '#9a7a55', ground: '#5f7445' }),
 };
 // ---- Stunt tracks: short generated circuits for time attack, Trackmania-style. Seeded, so everyone gets the same five:
@@ -1502,6 +1502,22 @@ const humans = () => cars.filter(c => !c.cpu && !c.remote);  // the players at t
 const isSolo = () => humans().length === 1;
 const hotMode = () => cfg.mode === 'hot' || cfg.mode === 'daily';                    // Daily = a hot lap with the day's condition
 const isHot = () => hotMode() && cars.filter(c => !c.remote).length === 1;   // online: the others' cars don't count
+// Stunt track hot lap = a Trackmania run: standing start at the line, lights, the clock starts at GO, and after the
+// line the run restarts by itself (offline only; online "hot lap together" keeps the rolling start)
+const stuntRun = () => !!TRACK.stunt && isHot() && !NET.race;
+let stuntNext = 0, stuntLast = null;
+// stunt laps from before the standing start (rolling start, 23 Nov 2026) don't count: online rows older than this are
+// ignored, and this browser's old stunt records, ghosts, medals and bests are cleared once
+const STUNT_SINCE = '2026-11-23T13:31:59Z';
+if (!store.get('stuntStanding', false)) {
+  try { for (const k of Object.keys(localStorage)) if (/^algarvegp\.(record|ghost|medal|pb)\.ks[1-5]\b/.test(k)) localStorage.removeItem(k); } catch (e) { }
+  store.set('stuntStanding', true);
+}
+const staleStunt = r => /^ks[1-5]$/.test(r.track) && String(r.created_at) < STUNT_SINCE;
+function placeStanding(c) {              // on the line, nose just behind it, standing still
+  const p = sToPoint(-1.5, 0);
+  c.x = p.x; c.y = p.y; c.h = p.h; c.ti = p.i; c.s = T.L - 1.5; c.prog = -1.5; c.alt = p.alt; c.vx = c.vy = c.vf = 0; c.nextInv = false; c.lastOff = null;
+}
 const isDaily = () => cfg.mode === 'daily' && isHot() && !!dailyNow;
 const isChaos = () => (cfg.mode === 'chaos' || cfg.mode === 'battle') && cars.length > 0 && state !== 'menu';
 const isBattle = () => cfg.mode === 'battle' && !!TRACK.arena && cars.length > 0 && state !== 'menu';
@@ -1949,7 +1965,7 @@ function startRace(rematch) {
   if (NET.race && !hotMode()) {                           // the host's grid order
     const slot = id => Math.max(0, NET.race.order.findIndex(o => o.id === id));
     cars.forEach(c => placeCar(c, slot(c.remote ? c.peer.id : NET.me)));
-  } else if (solo && hotMode()) cars.forEach(c => placeHot(c));
+  } else if (solo && hotMode()) cars.forEach(c => (TRACK.stunt && !NET.race ? placeStanding : placeHot)(c));
   else {
     const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
     // Chaos: humans start at the back (more boxes, better items); Race: random grid
@@ -1972,14 +1988,23 @@ function startRace(rematch) {
   session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
   simTime = 0; raceStart = 0;
   AU.setPans(solo);
+  stuntNext = 0;
   if (isHot()) {
-    cd = { t: 0, lights: 0, out: 0 };
-    state = 'race'; paused = false;
-    say(cars[0], cfg.ghost === 'off' ? 'OUT LAP – PUSH!' : 'OUT LAP – GHOST STARTS AT THE LINE', GREEN, 2.2);
+    if (stuntRun()) {
+      cd = { t: 2.3, lights: 2, out: 5.4 };          // three lights, then GO (the clock starts there)
+      state = 'countdown'; paused = false;
+      if (stuntLast) say(cars[0], stuntLast[0], stuntLast[1], 3); else say(cars[0], 'TIME ATTACK · STANDING START', GREEN, 2.4);
+      stuntLast = null;
+    } else {
+      cd = { t: 0, lights: 0, out: 0 };
+      state = 'race'; paused = false;
+      say(cars[0], cfg.ghost === 'off' ? 'OUT LAP – PUSH!' : 'OUT LAP – GHOST STARTS AT THE LINE', GREEN, 2.2);
+    }
     if (dailyNow) say(cars[0], `DAILY CHALLENGE · ${dailyNow.cond.icon} ${dailyNow.cond.name.toUpperCase()}`, '#ffd23f', 3.5);
     ghost = store.get(ghostKey(), null);
     if (ghost) ghost.name = 'Your best';
     if (ghost && ghost.tr) cars[0].bestTrace = ghost.tr;    // live delta against your all-time best
+    if (stuntRun() && ghost) cars[0].best = ghost.t;          // (a run compares with your best run, not just this one)
     recGhost = null; recState = 'idle'; pickGhost();
     if (cfg.ghost === 'record') loadRecordGhost();
   } else {
@@ -2502,7 +2527,10 @@ function step(dt) {
     if (lights > cd.lights) { cd.lights = lights; AU.beep(lights === 5 ? 520 : 440, 0.18); }
     if (cd.t >= cd.out) {
       state = 'race'; raceStart = simTime;
-      cars.forEach(c => { c.lapStart = c.sectorStart = simTime; c.timing = true; say(c, 'GO!', GREEN, 1.2); });
+      cars.forEach(c => {
+        c.lapStart = c.sectorStart = simTime; c.timing = true; say(c, 'GO!', GREEN, 1.2);
+        if (isHot()) { c.curTrace = []; c.curBrk = []; c.traceK = 0; c.gRec = []; c.gNext = 0; c.curSec = []; c.secIdx = 0; c.lapInvalid = false; }
+      });
       AU.cheer(1);
     } else locked = true;
   }
@@ -2598,6 +2626,7 @@ function step(dt) {
   if (NET.race && state === 'race' && humans().every(h => h.finished) && cars.every(c => c.finished || c.left)) resultsAt = Math.min(resultsAt || Infinity, simTime + 3);
   if (state === 'race' && resultsAt && simTime >= resultsAt) showResults();
   if (state !== 'menu') spawnFx(dt);
+  if (stuntNext && state === 'race' && simTime >= stuntNext) { stuntNext = 0; startRace(false); }   // next run
 }
 
 // Track limits (one rule for everyone): an "excursion" starts when all four wheels are past the
@@ -2703,7 +2732,9 @@ function lapDone(c) {
   let pb = false;
   if (invalid) say(c, 'LAP DELETED  ' + fmt(lt), '#ff6b6b', 2.2);
   else if (lt < c.best) { c.best = lt; pb = true; }
+  const run = stuntRun();
   if (invalid) {}
+  else if (run) say(c, pb ? 'PERSONAL BEST  ' + fmt(lt) : fmt(lt) + '   ' + fmtGap(lt - c.best), pb ? GREEN : '#ff9b9b', 3);
   else if (lt < session.bestLap) {
     session.bestLap = lt; session.bestBy = c.id;
     if (c.lapsDone > 1 || cars.every(o => o.lapsDone <= 1)) say(c, 'FASTEST LAP  ' + fmt(lt), PURPLE, 2.6);
@@ -2714,6 +2745,7 @@ function lapDone(c) {
   }
   if (!invalid && !isChaos() && TRACK.stunt && !c.cpu) stuntMedal(c, lt);
   if (!invalid && !isChaos()) uploadLap(c, lt, lapRec);
+  if (run) { stuntNext = simTime + 2.2; stuntLast = [c.msg, c.msgCol]; return; }   // run over: a fresh standing start in 2 s
   if (isHot()) { c.ers = 1; lateLimits(c); return; }          // hot lap: a full battery for every timed lap
   if (c.lapsDone >= cfg.laps || finishOrder.length) {
     c.finished = true; c.finishedAt = simTime; c.finishTime = simTime - raceStart;
@@ -4679,7 +4711,7 @@ function drawHud(vp, c) {
   txt(c.name.toUpperCase(), 92, 38, F(700, 15));
   const lapNo = Math.min(cfg.laps, c.lapsDone + 1);
   if (isBattle()) txt(c.out ? 'OUT – ALL BALLOONS POPPED' : '🎈'.repeat(Math.max(0, c.balloons)) + `   ${cars.filter(o => !o.out).length} LEFT`, 92, 60, F(600, 14), c.out ? '#ff6b6b' : '#c8ccd2');
-  else txt(isHot() ? (isDaily() ? dailyNow.cond.icon + ' DAILY · ' : '') + (c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
+  else txt(isHot() ? (isDaily() ? dailyNow.cond.icon + ' DAILY · ' : '') + (stuntRun() ? (c.timing ? 'TIME ATTACK' : 'GET READY') : c.timing ? 'HOT LAP ' + (c.lapsDone + 1) : 'OUT LAP') : c.finished ? 'FINISHED' : `LAP ${state === 'countdown' ? 1 : lapNo}/${cfg.laps}` + (cars.length > 2 ? `  ·  P${pos}/${cars.length}` : ''), 92, 60, F(600, 14), '#c8ccd2');
   if (c.penalty) txt('+' + c.penalty + 's PEN', 256, 60, F(800, 12), '#ff5050', 'right');
   else if (c.warnings) txt('⚠ ' + c.warnings + '/3', 256, 60, F(700, 12), YELLOW, 'right');
   if (state === 'race' && !c.finished && order.length > 1) {
@@ -4909,7 +4941,7 @@ function render(dt) {
   humans().forEach((c, i) => { drawTags(vps[i], cams && cams[i], c); drawHud(vps[i], c); });
   ctx.fillStyle = '#000';
   if (!isSolo()) { if (W >= H) ctx.fillRect(W / 2 - 1, 0, 2, H); else ctx.fillRect(0, H / 2 - 1, W, 2); }
-  if (!isHot() && (state === 'countdown' || (state === 'race' && simTime - raceStart < 1.2))) drawLights();
+  if ((!isHot() || stuntRun()) && (state === 'countdown' || (state === 'race' && simTime - raceStart < 1.2))) drawLights();
   const ms = clamp(Math.min(W, H) * 0.2, 120, 190);
   const bw = T.maxX - T.minX, bh = T.maxY - T.minY, k = ms / Math.max(bw, bh);
   if (isSolo() && TOUCH) drawMinimap(W - bw * k * 0.6 - 16, 150, ms * 0.6);      // phones: small, top right (the pedals are bottom right)
@@ -4995,7 +5027,7 @@ function recordKey() { return recKey(TRACK.id, cfg.handling); }
 const SEED_RECORDS = {
   algarve: { f1: 82.8333 }, spa: { f1: 107.9583 }, monza: { f1: 82.2583 }, rbr: { f1: 65.5833 }, silverstone: { f1: 93.775 },
   chaves: { f1: 33.575 }, graz: { f1: 23.7333 }, lowg: { f1: 51.0917 }, monaco: { f1: 75.4833 },
-  ks1: { f1: 28.217 }, ks2: { f1: 31.917 }, ks3: { f1: 32.617 }, ks4: { f1: 30.858 }, ks5: { f1: 30.967 },   // = the author medals
+  ks1: { f1: 29.625 }, ks2: { f1: 33.625 }, ks3: { f1: 34.5 }, ks4: { f1: 33.117 }, ks5: { f1: 32.825 },   // = the author medals
 };
 // ---------------------------------------------------------------- online records (Supabase)
 // The anon key is a public key by design: the database only allows reading laps and adding new
@@ -5048,7 +5080,8 @@ function traceFromSamples(smp) {
 async function fetchRecordGhost(track, handling) {   // fastest lap that has a ghost
   if (!onlineOn()) return null;
   try {
-    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=name,lap_ms,ghost&track=eq.${track}&handling=eq.${handling}&ghost=not.is.null&order=lap_ms.asc&limit=1`, { headers: apiHeaders() });
+    const since = TRACKS[track].stunt ? `&created_at=gte.${STUNT_SINCE}` : '';
+    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=name,lap_ms,ghost&track=eq.${track}&handling=eq.${handling}&ghost=not.is.null${since}&order=lap_ms.asc&limit=1`, { headers: apiHeaders() });
     if (!r.ok) return null;
     const row = (await r.json())[0];
     if (!row || !row.ghost || !Array.isArray(row.ghost.p)) return null;
@@ -5108,7 +5141,7 @@ async function uploadLap(c, lt, rec) {
 function onlineBoard(id, handling) {             // best lap per player, fastest first
   const seen = new Set(), out = [];
   for (const r of online.rows) {
-    if (r.track !== id || r.handling !== handling) continue;
+    if (r.track !== id || r.handling !== handling || staleStunt(r)) continue;
     const k = r.name.trim().toLowerCase();
     if (seen.has(k)) continue;
     seen.add(k); out.push({ t: r.lap_ms / 1000, name: r.name, d: String(r.created_at).slice(0, 10), online: true });

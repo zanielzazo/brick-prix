@@ -165,3 +165,7 @@ alter table public.lap_records add constraint plausible_lap check (
     when 'ks4'         then 21000
     when 'ks5'         then 21000
   end);
+
+-- Optional, for the stunt tracks' standing start (23 Nov 2026): the game already ignores the older rolling-start stunt laps,
+-- but this removes them from the table for good.
+delete from public.lap_records where track in ('st1', 'st2', 'st3', 'st4', 'st5', 'ks1', 'ks2', 'ks3', 'ks4', 'ks5') and created_at < '2026-11-23T13:31:59Z';
