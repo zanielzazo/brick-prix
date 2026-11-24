@@ -105,6 +105,11 @@
   .ghb { white-space:nowrap; }
   .ghb button { background:#262b33; border:1px solid #3a414c; color:#e8ebef; border-radius:6px; padding:3px 9px; margin-right:5px; font:700 12px inherit; font-family:inherit; cursor:pointer; }
   .ghb button:hover { background:#353c47; border-color:#b388ff; }
+  .ghb button.on { background:#b388ff; border-color:#b388ff; color:#14101c; }
+  .cmpbar { margin-top:12px; padding:8px 12px; border-radius:8px; background:#1a1f27; border:1px solid #2c333e; color:#c8ccd2; font-size:13px; }
+  .cmpbar b { color:#fff; }
+  .cmpbar button { background:#b388ff; border:0; color:#14101c; border-radius:6px; padding:4px 10px; margin-left:8px; font:800 12px inherit; font-family:inherit; cursor:pointer; }
+  .cmpbar button#cmpClr { background:#353c47; color:#e8ebef; }
   .seg button + button { border-left:1px solid var(--line); }
   .seg button.sel { background:var(--red); }
   .go { margin-top:20px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
@@ -2178,7 +2183,8 @@ function applyReplayFrame() {
   });
   document.getElementById('rpBar').value = R2.t.toFixed(2);
   document.getElementById('rpTime').textContent = `${R2.t.toFixed(1)} / ${R2.end.toFixed(1)} s`;
-  const c = cars[R2.follow]; document.getElementById('rpCar').textContent = c ? c.name : '';
+  const c = cars[R2.follow], o = R2.watch && cars.length === 2 ? cars[1 - R2.follow] : null, gp = o && c ? watchGap(c, o, R2.t) : null;
+  document.getElementById('rpCar').textContent = c ? (gp != null ? `${c.short.slice(0, 14)} ${gp >= 0 ? '+' : '−'}${Math.abs(gp).toFixed(3)}` : c.name) : '';
 }
 function buildReplayUI() {
   const R2 = replay;
@@ -2235,23 +2241,25 @@ function openTel() {
 }
 function closeTel() {
   show('telOv', false);
+  if (telCmp) { telCmp = null; if (state === 'menu') refreshMenu(); return; }          // (back to Records)
   if (state === 'race') { if (telResume) { paused = false; AU.pause(false); } else show('pause', true); }
 }
 function drawTel() {
   const hs = humans(), c = hs[telWho] || hs[0], cv = document.getElementById('telCanvas'), sub = document.getElementById('telSub');
-  document.getElementById('telPlayerBtn').style.display = hs.length > 1 ? '' : 'none';
-  document.getElementById('telPlayerBtn').textContent = 'Show ' + (hs[1 - telWho] ? hs[1 - telWho].name : 'player 2');
+  document.getElementById('telPlayerBtn').style.display = hs.length > 1 || telCmp ? '' : 'none';
+  document.getElementById('telPlayerBtn').textContent = telCmp ? '⇄ Swap' : 'Show ' + (hs[1 - telWho] ? hs[1 - telWho].name : 'player 2');
   const W2 = 1000, H2 = 560, dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = W2 * dpr; cv.height = H2 * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.fillStyle = '#0f1216'; g.fillRect(0, 0, W2, H2);
-  const L = c && c.lastTel;
+  const TC = telCmp, L = TC ? { tr: TC.a.tr, brk: null, t: TC.a.t, lap: 0, invalid: false } : c && c.lastTel;
   if (!L || L.tr.length < 5) { sub.textContent = (c ? c.name + ' · ' : '') + 'Drive a full lap first'; g.fillStyle = '#9aa1ab'; g.font = '600 20px Segoe UI, sans-serif'; g.textAlign = 'center'; g.fillText('No lap yet – finish a lap and open this again (T).', W2 / 2, H2 / 2); return; }
   // reference: record ghost (hot lap, same track + handling), else the best lap before this one
   let ref = null, refName = '';
-  if (isHot() && recGhost && recGhost.tr && recGhost.tr.length > 5) { ref = recGhost.tr; refName = `record ghost · ${recGhost.name} ${fmt(recGhost.t)}`; }
+  if (TC) { ref = TC.b.tr; refName = `${TC.b.name} ${fmt(TC.b.t)}`; }
+  else if (isHot() && recGhost && recGhost.tr && recGhost.tr.length > 5) { ref = recGhost.tr; refName = `record ghost · ${recGhost.name} ${fmt(recGhost.t)}`; }
   else if (L.prevTr && L.prevTr.length > 5 && isFinite(L.prevT)) { ref = L.prevTr; refName = `your previous best · ${fmt(L.prevT)}`; }
   const n = Math.floor(T.L / 10), tr = L.tr.slice(0, n + 1); tr[n] = tr[n] ?? L.t;
-  const refEnd = ref ? (ref === (recGhost && recGhost.tr) ? recGhost.t : L.prevT) : 0, rf = ref ? ref.slice(0, n + 1) : null; if (rf) rf[n] = rf[n] ?? refEnd;
+  const refEnd = ref ? (TC ? TC.b.t : ref === (recGhost && recGhost.tr) ? recGhost.t : L.prevT) : 0, rf = ref ? ref.slice(0, n + 1) : null; if (rf) rf[n] = rf[n] ?? refEnd;
   // speed over 30 m windows (the lap is timed every 10 m), then lightly smoothed
   const spd = arr => {
     const v = [];
@@ -2261,7 +2269,8 @@ function drawTel() {
   };
   const sv = spd(tr), rv = rf ? spd(rf) : null;
   const gap = rf ? tr.map((t, k) => t != null && rf[k] != null ? t - rf[k] : null) : null;
-  sub.textContent = `${c.name} · lap ${L.lap} ${fmt(L.t)}${L.invalid ? ' (deleted)' : ''}` + (ref ? ` vs ${refName} · ${L.t - refEnd >= 0 ? '+' : '−'}${Math.abs(L.t - refEnd).toFixed(3)} s` : ' · no reference lap yet');
+  if (!L.brk) { L.brk = []; for (let k = 0; k < n - 1; k++) L.brk[k] = sv[k] != null && sv[k + 1] != null && sv[k + 1] < sv[k] - 0.6; }   // (a ghost: braking where it slows down)
+  sub.textContent = TC ? `${TC.a.name} ${fmt(TC.a.t)}` + ` vs ${refName} · ${L.t - refEnd >= 0 ? '+' : '−'}${Math.abs(L.t - refEnd).toFixed(3)} s` : `${c.name} · lap ${L.lap} ${fmt(L.t)}${L.invalid ? ' (deleted)' : ''}` + (ref ? ` vs ${refName} · ${L.t - refEnd >= 0 ? '+' : '−'}${Math.abs(L.t - refEnd).toFixed(3)} s` : ' · no reference lap yet');
   // layout
   const x0 = 56, x1 = W2 - 16, X = d => x0 + (x1 - x0) * d / T.L;
   const sTop = 24, sBot = 300, gTop = 330, gBot = 440, bY = 452;
@@ -2320,8 +2329,9 @@ function drawTel() {
   }
   const top = Math.max(...sv.filter(v => v != null)), rtop = rv ? Math.max(...rv.filter(v => v != null)) : null;
   g.fillStyle = '#9aa1ab'; g.fillText(`TOP SPEED  ${Math.round(top)} km/h` + (rtop ? `  (reference ${Math.round(rtop)})` : ''), 8, H2 - 12);
-  g.fillStyle = '#5cd0ff'; g.fillRect(W2 - 250, H2 - 22, 18, 4); g.fillStyle = '#dfe3e8'; g.fillText('this lap', W2 - 226, H2 - 16);
-  if (rv) { g.fillStyle = '#ffc83d'; g.fillRect(W2 - 150, H2 - 22, 18, 4); g.fillStyle = '#dfe3e8'; g.fillText('reference', W2 - 126, H2 - 16); }
+  const nA = TC ? TC.a.name.slice(0, 14) : 'this lap', nB = TC ? TC.b.name.slice(0, 14) : 'reference';
+  g.fillStyle = '#5cd0ff'; g.fillRect(W2 - 290, H2 - 22, 18, 4); g.fillStyle = '#dfe3e8'; g.fillText(nA, W2 - 266, H2 - 16);
+  if (rv) { g.fillStyle = '#ffc83d'; g.fillRect(W2 - 150, H2 - 22, 18, 4); g.fillStyle = '#dfe3e8'; g.fillText(nB, W2 - 126, H2 - 16); }
 }
 function show(id, on) { document.getElementById(id).classList.toggle('show', on); }
 function cycleCam(c) {
@@ -5297,46 +5307,85 @@ function raceGhost(track, h, name, daily) {
     setTimeout(() => { loadTrackData(track); if (GFX) GFX.buildScene(); cars = []; refreshMenu(); }, 30);
   } else refreshMenu();
 }
-// ▶ Watch: a driver's lap as a replay (TV, onboard, rear or free camera), built from their ghost
-async function watchGhost(track, h, name, btn) {
+// Load the track first (the ghosts' timing traces are measured along it), then the drivers' ghosts
+async function loadGhosts(track, h, names) {
+  if (track !== TRACK.id) { loadTrackData(track); GFX.buildScene(); cars = []; if (h === 'f1') store.set('track', track); }
+  const gs = await Promise.all(names.map(n => ghostFor(track, h, n)));
+  gs.forEach((g, i) => { if (g) { g.name = g.name || names[i].trim(); if (!g.tr || g.tr.length < 5) g.tr = traceFromSamples(g.s); } });
+  return gs;
+}
+// ▶ Watch: one driver's lap – or ⚖ two of them on track together – as a replay (TV, onboard, rear or free camera),
+// built from their ghosts
+async function watchGhost(track, h, names, btn) {
   if (state !== 'menu' || !GFX) return;
+  const label = btn && btn.textContent;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  const g = await ghostFor(track, h, name);
-  if (btn) { btn.disabled = false; btn.textContent = '▶ Watch'; }
-  if (!g || !g.s || g.s.length < 3 || state !== 'menu') { if (btn) btn.textContent = 'no ghost'; return; }
-  if (track !== TRACK.id) { loadTrackData(track); GFX.buildScene(); if (h === 'f1') store.set('track', track); }
-  const c = makeCar(0), mineName = myNames.has(nameKey(name));
-  c.name = `${g.name || name} · ${fmt(g.t)}`;
-  c.col = mineName ? liveryFor(0) : COLORS[[...nameKey(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % COLORS.length];
-  cars = [c];
-  // the ghost's samples (every 0.05–0.1 s) → replay frames every 1/30 s, with speed, steering and brakes worked out
-  const smp = g.s, at = t => {
-    let k = 0; while (k < smp.length - 2 && smp[k + 1][0] <= t) k++;
+  const gs = await loadGhosts(track, h, names);
+  if (btn) { btn.disabled = false; btn.textContent = label; }
+  if (gs.some(g => !g || !g.s || g.s.length < 3) || state !== 'menu') { if (btn) btn.textContent = 'no ghost'; return; }
+  const hash = n => [...nameKey(n)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % COLORS.length;
+  let used = -1;
+  cars = gs.map((g, i) => {
+    const c = makeCar(i), nm = names[i];
+    let ci = hash(nm); if (ci === used) ci = (ci + 1) % COLORS.length; used = ci;
+    c.name = `${g.name} · ${fmt(g.t)}`; c.short = g.name; c.gh = g;
+    c.col = myNames.has(nameKey(nm)) && !gs.some((o, j) => j !== i && myNames.has(nameKey(names[j]))) ? liveryFor(0) : COLORS[ci];
+    return c;
+  });
+  // each ghost's samples (every 0.05–0.1 s) → replay frames every 1/30 s, with speed, steering and brakes worked out;
+  // a car that has finished its lap waits past the line
+  const ends = gs.map(g => Math.min(g.t, g.s[g.s.length - 1][0])), end = Math.max(...ends), frames = [];
+  const st = gs.map(g => { const g0 = nearestGlobal(g.s[0][1], g.s[0][2]); return { probe: { x: g.s[0][1], y: g.s[0][2], ti: g0 ? g0.j : 0 }, wheel: 0, vPrev: null, k: 0 }; });
+  const at = (g, S, t) => {
+    const smp = g.s; let k = S.k; while (k > 0 && smp[k][0] > t) k--; while (k < smp.length - 2 && smp[k + 1][0] <= t) k++; S.k = k;
     const a = smp[k], b = smp[k + 1], f = clamp((t - a[0]) / ((b[0] - a[0]) || 1), 0, 1);
     let dh = b[3] - a[3]; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
     return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + dh * f];
   };
-  const end = Math.min(g.t, smp[smp.length - 1][0]), frames = [], g0 = nearestGlobal(smp[0][1], smp[0][2]), probe = { x: smp[0][1], y: smp[0][2], ti: g0 ? g0.j : 0 };
-  let wheel = 0, vPrev = null;
   for (let t = 0; t <= end + 1e-6; t += REC_DT) {
-    const [x, y, hh] = at(t), [x2, y2, h2] = at(Math.min(end, t + 0.1)), [x0, y0] = at(Math.max(0, t - 0.1));
-    const v = Math.hypot(x2 - x0, y2 - y0) / (Math.min(end, t + 0.1) - Math.max(0, t - 0.1) || 1);
-    let dh = h2 - hh; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
-    const yaw = dh / 0.1, delta = clamp(Math.atan(yaw * VEH.wb / Math.max(v, 3)), -0.4, 0.4);
-    wheel = (wheel + v * REC_DT / 0.36) % 6283.2;
-    probe.x = x; probe.y = y; const sl = trackLocal(probe);
-    const brk = vPrev != null && v < vPrev - 4 * REC_DT * 9.8 * 0.5 ? 1 : 0; vPrev = v;
-    frames.push(new Float32Array([x, y, groundAt(x, y), hh, 0, delta, wheel, v, sl, brk]));
+    const f = new Float32Array(gs.length * REC_F);
+    gs.forEach((g, i) => {
+      const S = st[i], e = ends[i], tt = Math.min(t, e), done = t > e, o = i * REC_F;
+      const [x, y, hh] = at(g, S, tt), [x2, y2, h2] = at(g, S, Math.min(e, tt + 0.1)), [x0, y0] = at(g, S, Math.max(0, tt - 0.1));
+      const v = done ? 0 : Math.hypot(x2 - x0, y2 - y0) / (Math.min(e, tt + 0.1) - Math.max(0, tt - 0.1) || 1);
+      let dh = h2 - hh; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+      const delta = done ? 0 : clamp(Math.atan(dh / 0.1 * VEH.wb / Math.max(v, 3)), -0.4, 0.4);
+      S.wheel = (S.wheel + v * REC_DT / 0.36) % 6283.2;
+      S.probe.x = x; S.probe.y = y; const sl = trackLocal(S.probe);
+      const brk = S.vPrev != null && v < S.vPrev - REC_DT * 9.8 * 2 ? 1 : 0; S.vPrev = v;
+      f.set([x, y, groundAt(x, y), hh, 0, delta, S.wheel, v, sl, brk], o);
+    });
+    frames.push(f);
   }
   rec = { frames, next: 0 };
   GFX.reset(cars);
-  replay = { prevState: 'menu', prevPaused: false, saved: [], watch: { track, h, name }, t: 0, end: (frames.length - 1) * REC_DT, speed: 1, playing: true, follow: 0, cam: 'tv',
-    orbit: { yaw: smp[0][3] + Math.PI * 0.8, pitch: 0.28, dist: TRACK.kart ? 7 : 13 }, ui: true };
+  replay = { prevState: 'menu', prevPaused: false, saved: [], watch: { track, h, names }, t: 0, end: (frames.length - 1) * REC_DT, speed: 1, playing: true, follow: 0, cam: 'tv',
+    orbit: { yaw: gs[0].s[0][3] + Math.PI * 0.8, pitch: 0.28, dist: TRACK.kart ? 7 : 13 }, ui: true };
   state = 'replay'; paused = false; AU.pause(true); parts = [];
   show('recordsOv', false); show('menu', false);
   document.getElementById('replayUI').classList.add('show');
   document.getElementById('rpBar').max = replay.end.toFixed(2);
   buildReplayUI(); applyReplayFrame(); GFX.replaySnap();
+}
+// the gap between two watched laps where the followed car is now: its time there against the other's
+function watchGap(c, o, t) {
+  const a = c.gh && c.gh.tr, b = o.gh && o.gh.tr; if (!a || !b) return null;
+  let k = 0; while (k < a.length - 1 && a[k + 1] != null && a[k + 1] <= t) k++;
+  if (a[k] == null || a[k + 1] == null || b[k] == null || b[k + 1] == null) return null;
+  const f = clamp((t - a[k]) / ((a[k + 1] - a[k]) || 1), 0, 1);
+  return t - (b[k] + (b[k + 1] - b[k]) * f);
+}
+// 📈 Telemetry of two laps: A against B (speed, gap, braking, sectors, the speed at each turn)
+let telCmp = null;
+async function compareTel(track, h, names, btn) {
+  if (state !== 'menu' || !GFX) return;
+  const label = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const gs = await loadGhosts(track, h, names);
+  if (btn) { btn.disabled = false; btn.textContent = label; }
+  if (gs.some(g => !g || !g.tr || g.tr.length < 5)) { if (btn) btn.textContent = 'no ghost'; return; }
+  telCmp = { a: gs[0], b: gs[1] };
+  show('telOv', true); drawTel();
 }
 function refreshMenu() {
   const dailyMenu = cfg.players === 1 && cfg.mode === 'daily', D = dailyToday();
@@ -5485,14 +5534,14 @@ document.getElementById('rpExit').onclick = () => closeReplay();
 document.getElementById('rpBar').oninput = e => { if (replay) { replay.t = +e.target.value; replay.playing = false; buildReplayUI(); applyReplayFrame(); } };
 document.getElementById('telResBtn').onclick = () => openTel();
 document.getElementById('telCloseBtn').onclick = () => closeTel();
-document.getElementById('telPlayerBtn').onclick = () => { telWho = 1 - telWho; drawTel(); };
+document.getElementById('telPlayerBtn').onclick = () => { if (telCmp) telCmp = { a: telCmp.b, b: telCmp.a }; else telWho = 1 - telWho; drawTel(); };
 document.getElementById('rematchBtn').onclick = () => resultsNext();
 document.getElementById('menuBtn').onclick = () => toMenu();
 document.getElementById('recordsBtn').onclick = () => { showRecords(); fetchOnline(); };
 document.getElementById('recCloseBtn').onclick = () => show('recordsOv', false);
 document.getElementById('helpBtn').onclick = () => show('helpOv', true);
 document.getElementById('helpCloseBtn').onclick = () => show('helpOv', false);
-let recTab = null;
+let recTab = null, cmpSel = [];      // ⚖: the two drivers picked to compare (on the open tab)
 function showRecords() {
   if (!recTab || (!TRACKS[recTab] && recTab !== 'daily')) recTab = TRACK.id;
   const D = dailyToday();
@@ -5513,20 +5562,35 @@ function showRecords() {
   const board = h => {      // (uses menuNow and boardRows, set below before it's called)
     const dly = recTab === 'daily', tr = dly ? D.track : recTab, hh = dly ? D.key : h, rows = boardFor(tr, hh).slice(0, 15), lead = rows.length ? rows[0].t : 0;
     boardRows = { rows, tr, hh, dly };
-    return (dly ? `<div class="sub" style="margin-top:14px">Daily challenge ${D.day}: <b style="color:#fff">${esc(TRACKS[D.track].title)}</b> · ${D.cond.icon} ${D.cond.name} – ${D.cond.desc}. New one in ${dailyLeft()}.</div>` : '') +
+    if (cmpSel.tab !== recTab) { cmpSel = []; cmpSel.tab = recTab; }
+    const pair = cmpSel.length === 2 ? cmpSel.map(k => rows.find(r => nameKey(r.name) === k)).filter(Boolean) : [];
+    return '<div>' + (dly ? `<div class="sub" style="margin-top:14px">Daily challenge ${D.day}: <b style="color:#fff">${esc(TRACKS[D.track].title)}</b> · ${D.cond.icon} ${D.cond.name} – ${D.cond.desc}. New one in ${dailyLeft()}.</div>` : '') +
+      (menuNow ? `<div class="cmpbar">${pair.length === 2 ? `⚖ <b>${esc(pair[0].name)}</b> vs <b>${esc(pair[1].name)}</b> <button id="cmpWatch">▶ Watch both</button><button id="cmpTel">📈 Telemetry</button><button id="cmpClr">✕</button>`
+        : '⚖ Pick two laps to watch them together or compare their telemetry' + (cmpSel.length === 1 ? ' – one more' : '')}</div>` : '') +
       '<div style="margin-top:14px"><table><tr><th>#</th><th>Driver</th><th>Lap</th><th>Gap</th><th title="Race this driver\'s ghost, or watch the lap">Ghost</th></tr>' +
       (rows.length ? rows.map((r, i) => `<tr class="${mine.has(r.name.trim().toLowerCase()) && !isDefaultName(r.name) ? 'me' : ''}" title="${r.d}"><td class="pos" style="font-size:15px">${i + 1}</td><td>${esc(r.name)}</td>` +
         `<td class="num"><b>${fmt(r.t)}</b></td><td class="num" style="color:var(--dim)">${i ? '+' + (r.t - lead).toFixed(3) : ''}</td>` +
-        `<td class="ghb">${hasGhost(tr, hh, r.name) && menuNow ? `<button data-race="${i}" title="Race this ghost in Hot lap">👻 Race</button><button data-watch="${i}" title="Watch this lap">▶ Watch</button>` : '<span style="color:var(--dim)">–</span>'}</td></tr>`).join('')
-        : '<tr><td colspan="5" style="color:var(--dim)">No laps yet</td></tr>') + '</table></div>';
+        `<td class="ghb">${hasGhost(tr, hh, r.name) && menuNow ? `<button data-race="${i}" title="Race this ghost in Hot lap">👻 Race</button><button data-watch="${i}" title="Watch this lap">▶ Watch</button>` +
+          `<button data-cmp="${i}" class="${cmpSel.includes(nameKey(r.name)) ? 'on' : ''}" title="Pick two laps to compare">⚖</button>` : '<span style="color:var(--dim)">–</span>'}</td></tr>`).join('')
+        : '<tr><td colspan="5" style="color:var(--dim)">No laps yet</td></tr>') + '</table></div></div>';
   };
   const menuNow = state === 'menu';
   let boardRows = null;
   document.getElementById('recBody').innerHTML = board('f1');
-  if (boardRows) document.querySelectorAll('#recBody [data-race], #recBody [data-watch]').forEach(b => {
-    const { rows, tr, hh, dly } = boardRows, r = rows[+(b.dataset.race ?? b.dataset.watch)];
-    b.onclick = () => b.dataset.race != null ? raceGhost(tr, hh, r.name, dly) : watchGhost(tr, hh, r.name, b);
-  });
+  if (boardRows) {
+    const { rows, tr, hh, dly } = boardRows;
+    document.querySelectorAll('#recBody [data-race], #recBody [data-watch], #recBody [data-cmp]').forEach(b => {
+      const r = rows[+(b.dataset.race ?? b.dataset.watch ?? b.dataset.cmp)];
+      b.onclick = () => {
+        if (b.dataset.race != null) raceGhost(tr, hh, r.name, dly);
+        else if (b.dataset.watch != null) watchGhost(tr, hh, [r.name], b);
+        else { const k = nameKey(r.name), j = cmpSel.indexOf(k); if (j >= 0) cmpSel.splice(j, 1); else { cmpSel.push(k); if (cmpSel.length > 2) cmpSel.shift(); } showRecords(); }
+      };
+    });
+    const names = () => cmpSel.map(k => rows.find(r => nameKey(r.name) === k).name);
+    const $b = id => document.getElementById(id);
+    if ($b('cmpWatch')) { $b('cmpWatch').onclick = e => watchGhost(tr, hh, names(), e.target); $b('cmpTel').onclick = e => compareTel(tr, hh, names(), e.target); $b('cmpClr').onclick = () => { cmpSel = []; cmpSel.tab = recTab; showRecords(); }; }
+  }
   show('recordsOv', true);
 }
 

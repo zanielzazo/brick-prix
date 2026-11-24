@@ -81,7 +81,7 @@ You can also use gamepads (right trigger to accelerate, left trigger to brake, s
 
 ## Track records
 
-The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the leaderboard (each driver's best valid lap, with the gap to the leader). Next to each driver: **👻 Race** sets that driver's lap as your ghost and gets the menu ready for a hot lap on that track (press Start; G still switches ghosts), and **▶ Watch** replays the lap with the replay cameras (TV, onboard, rear, free; Esc goes back to Records). Any lap uploaded with a ghost can be raced or watched. They start with Claude's hot laps as the times to beat:
+The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the leaderboard (each driver's best valid lap, with the gap to the leader). Next to each driver: **👻 Race** sets that driver's lap as your ghost and gets the menu ready for a hot lap on that track (press Start; G still switches ghosts), and **▶ Watch** replays the lap with the replay cameras (TV, onboard, rear, free; Esc goes back to Records). Any lap uploaded with a ghost can be raced or watched. Pick two drivers with **⚖** to compare them: **▶ Watch both** puts both laps on track together (with the live gap to the other one), and **📈 Telemetry** shows lap A against lap B – speed traces, the gap along the lap, sector deltas, braking and the speed at each turn (⇄ Swap flips them). They start with Claude's hot laps as the times to beat:
 
 | Circuit | Lap |
 |---|---|
