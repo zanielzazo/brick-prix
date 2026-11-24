@@ -566,8 +566,9 @@ const TRACKS = {
   chaves: {
     id: 'chaves', title: 'CHAVES', full: 'Kartódromo de Chaves', place: 'Chaves, Portugal', km: '0.59 km', turns: 0, recordKey: 'record.chaves', kart: true,
     raw: CHAVES_RAW, startLine: [69.5, -27.8], startH: 0, pts: {}, labels: [], heightKeys: [], drs: [], autoTurns: true,
-    // home of three friends: Zazo (the fast one), Hugo (the middle one) and Filipe (the other one)
-    hotFrom: '9', turnNames: { first: 'Curva do Zazo', middle: 'Curva do Hugo', tightest: 'Gancho do Filipe' },
+    // home of three friends: Zazo (the fast one), Hugo (the middle one) and Filipe (the other one) – and Hugo's
+    // brother Rafa (Rafa Moço), who has spent hours trying to beat his brother's lap
+    hotFrom: '9', turnNames: { first: 'Curva do Zazo', middle: 'Curva do Hugo', tightest: 'Gancho do Filipe', last: 'Curva do Rafa' },
     jokes: {
       boards: [
         ['ZAZO 👑', 'REI DE CHAVES', '#ffc83d'],
@@ -576,6 +577,8 @@ const TRACKS = {
         ['ZAZO > TODOS', 'É CIÊNCIA', '#ffc83d'],
         ['FILIPE', 'AINDA ESTÁS NA VOLTA 1?', '#ff6fa3'],
         ['HUGO', 'P2 DESDE SEMPRE', '#9aa6b2'],
+        ['RAFA MOÇO', 'SÓ MAIS UMA VOLTA…', '#5cd0ff'],
+        ['RAFA', 'O IRMÃO AINDA ESTÁ À FRENTE', '#5cd0ff'],
       ],
       crash: ['AQUI O FILIPE BATEU', 'E AQUI. E AQUI TAMBÉM.', '#ff6fa3'],
     },
@@ -1323,6 +1326,7 @@ let state = 'menu', paused = false;
 let simTime = 0, raceStart = 0, cd = null;
 let cars = [], parts = [], finishOrder = [], resultsAt = 0;
 let session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
+let rafaBoard = null;          // Chaves: redraws Rafa's scoreboard over the track with the latest online laps
 let gridFlip = Math.random() < 0.5;
 const cfg = {
   laps: store.get('laps', 3), cam: (v => v === 'chase' ? 'rear' : v)(store.get('cam3d', 'onboard')),   // old 'chase' setting → rear cam
@@ -1367,6 +1371,8 @@ function makeCpu(id, k, names) {
   let lv = CPU_LEVELS[cfg.cpuLevel] || CPU_LEVELS.medium;
   if (TRACK.jokes && c.name === 'Hugo') lv = { skill: 0.93, grip: 1.08, brake: 0.82 };   // always mid
   if (TRACK.jokes && c.name === 'Filipe') { lv = { skill: 0.84, grip: 0.95, brake: 0.62 }; c.clumsy = true; }   // always… Filipe
+  if (TRACK.jokes && c.name === 'Rafa') lv = { skill: 0.92, grip: 1.07, brake: 0.8 };    // just behind his brother. Always.
+  if (TRACK.jokes && c.name === 'Rafa') c.col = { c: '#5cd0ff', d: '#0d3a5c', helmet: '#ffffff' };
   if (TRACK.jokes && c.name === 'Hugo') c.col = { c: '#9aa6b2', d: '#2b3139', helmet: '#ffffff' };
   if (TRACK.jokes && c.name === 'Filipe') c.col = { c: '#ff6fa3', d: '#5a1035', helmet: '#ffe066' };
   c.skill = lv.skill + (Math.random() - 0.5) * 0.02; c.gripK = lv.grip * (1 + (Math.random() - 0.5) * 0.04); c.brakeK = lv.brake;
@@ -1957,7 +1963,7 @@ function startRace(rematch) {
   const cpus = [];
   if (TRACK.jokes) {            // the local legends race at Chaves – unless one of them is at the wheel
     const taken = hs.map(h => h.name.trim().toLowerCase());
-    names = ['Hugo', 'Filipe'].filter(n => !taken.includes(n.toLowerCase())).concat(names);
+    names = ['Hugo', 'Rafa', 'Filipe'].filter(n => !taken.some(t => n === 'Rafa' ? t.startsWith('rafa') : t === n.toLowerCase())).concat(names);
   }
   for (let k = 0; k < nCpu; k++) cpus.push(makeCpu(hs.length + k, k, names));
   cars = hs.concat(cpus);
@@ -3116,6 +3122,56 @@ function buildGfx() {
     };
     const used = [];
     const free = i => used.every(u => circ(u, i) * SP > 25) && T.labels.every(l => circ(l.i, i) * SP > 8);
+    // Rafa's gantry: a big scoreboard right across the longest straight – Rafa against his brother Hugo (Humasamo
+    // online), live from the leaderboard, with how far he still is after hours of trying
+    {
+      let best = -1, bi = -1, run = 0;
+      for (let k = 0; k < 2 * N; k++) {
+        const i = k % N;
+        run = Math.abs(T.K[i]) < 0.012 ? run + 1 : 0;
+        if (k >= N && T.S[i] > 60 && T.S[i] < T.L - 60 && run > best) { best = run; bi = i; }
+      }
+      if (bi >= 0) {
+        const i = (bi - Math.round(Math.min(10, best * SP / 3) / SP) + N) % N;           // a bit before the end: in view all the way down
+        const wl = T.wallW[0][i] + 0.6, wr = T.wallW[1][i] + 0.6;
+        const pL = [X[i] - NX[i] * wl, Y[i] - NY[i] * wl], pR = [X[i] + NX[i] * wr, Y[i] + NY[i] * wr];
+        const bw = wl + wr, bh = bw / 4, y0 = HT[i] + 3.4;
+        const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 256;
+        const tex = new THREE.CanvasTexture(cv), g = cv.getContext('2d');
+        const draw = () => {
+          const rows = online.rows.filter(r => r.track === 'chaves' && r.handling === 'f1');
+          const who = re => rows.filter(r => re.test(r.name.trim()));
+          const bestOf = a => a.reduce((m, r) => Math.min(m, r.lap_ms / 1000), Infinity);
+          const hu = bestOf(who(/^(humasamo|hugo)$/i)), rr = who(/^rafa/i), ra = bestOf(rr);
+          const W = 1024, H = 256, B = '#5cd0ff';
+          g.fillStyle = '#0b1a2b'; g.fillRect(0, 0, W, H); g.fillStyle = B; g.fillRect(0, 0, W, 12); g.fillRect(0, H - 12, W, 12);
+          g.textAlign = 'center';
+          g.fillStyle = '#fff'; g.font = '900 70px Segoe UI, Arial, sans-serif'; g.fillText('RAFA MOÇO  vs  O IRMÃO', W / 2, 88, W - 40);
+          g.font = '800 50px Segoe UI, Arial, sans-serif';
+          if (isFinite(hu) && isFinite(ra)) {
+            g.fillStyle = '#c9d1da'; g.fillText('HUGO ' + fmt(hu), W * 0.27, 156);
+            g.fillStyle = ra < hu ? '#ffd23f' : B; g.fillText('RAFA ' + fmt(ra), W * 0.73, 156);
+            g.fillStyle = '#fff'; g.font = '900 44px Segoe UI, Arial, sans-serif'; g.fillText(ra < hu ? '>' : '<', W / 2, 154);
+          } else { g.fillStyle = B; g.fillText('3 HORAS SEGUIDAS A TENTAR', W / 2, 156, W - 40); }
+          g.font = '800 34px Segoe UI, Arial, sans-serif'; g.fillStyle = ra < hu ? '#ffd23f' : B;
+          g.fillText(ra < hu ? 'O RAFA PASSOU O IRMÃO?! ALGUÉM AVISE O HUGO'
+            : isFinite(hu) && isFinite(ra) ? `+${(ra - hu).toFixed(3)} · ${rr.length} RECORDES PESSOAIS · 3 HORAS · SÓ MAIS UMA VOLTA…`
+            : 'E O HUGO AINDA À FRENTE · SÓ MAIS UMA VOLTA…', W / 2, 222, W - 40);
+          tex.needsUpdate = true;
+        };
+        draw(); rafaBoard = draw;
+        const mat = new THREE.MeshBasicMaterial({ map: tex, fog: true }), th = Math.atan2(-T.TX[i], -T.TY[i]);
+        for (const r of [th, th + Math.PI]) {           // the front for the cars coming down the straight, and the back
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), mat);
+          m.position.set((pL[0] + pR[0]) / 2 + Math.sin(r) * 0.06, y0 + bh / 2, (pL[1] + pR[1]) / 2 + Math.cos(r) * 0.06); m.rotation.y = r; scene.add(m);
+        }
+        const fr = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.5, bh + 0.5, 0.08), new THREE.MeshLambertMaterial({ color: '#1d2733' }));
+        fr.position.set((pL[0] + pR[0]) / 2, y0 + bh / 2, (pL[1] + pR[1]) / 2); fr.rotation.y = th; scene.add(fr);
+        const ph = y0 + bh + 0.3 - HT[i], pm = new THREE.MeshLambertMaterial({ color: '#5cd0ff' });
+        for (const [x, z] of [pL, pR]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, ph, 0.4), pm); post.position.set(x, HT[i] + ph / 2, z); scene.add(post); }
+        used.push(i);
+      }
+    }
     J.boards.forEach((b, k) => {
       const want = Math.round((k + 0.35) * N / J.boards.length);
       for (let o = 0; o < N / 2; o++) for (const i of [(want + o) % N, (want - o + N) % N]) for (const si of [0, 1]) {
@@ -3420,7 +3476,7 @@ function buildGfx() {
   }
   for (const k of keepers) scene.add(k);
   carMeshes = []; ghostMesh = null; chaosObjs = []; hazMesh = new Map(); skidHead = 0; skidCount = 0; skidGeo.setDrawRange(0, 0);
-  planes = []; planeT = 1; taxiMesh = new Map(); if (!TRACK.airport) airportLights = []; if (!TRACK.jokes) jokeAnims = [];
+  planes = []; planeT = 1; taxiMesh = new Map(); if (!TRACK.airport) airportLights = []; if (!TRACK.jokes) { jokeAnims = []; rafaBoard = null; }
   leisure = TRACK.leisure ? buildLeisure() : TRACK.monaco ? buildMonaco() : TRACK.arena ? buildArena() : TRACK.stunt ? buildStunt() : null;
   airship = TRACK.airship && TRACK.schlossberg ? buildAirship() : null;
   demo.s = 0; demo.cam.station = -1; demo.cam.snap = true;
@@ -4985,10 +5041,12 @@ function showResults() {
   let banner = rec ? `New track record by ${rec.name}: ${fmt(record.t)}` : `Fastest lap: ${cars[session.bestBy] ? cars[session.bestBy].name : '-'} · ${fmt(session.bestLap)}`;
   if (TRACK.jokes && order.length > 1) {
     const nm = c => c.name.trim().toLowerCase(), j = [];
-    const zz = order.find(c => /zazo/.test(nm(c))), hu = order.find(c => nm(c) === 'hugo'), fi = order.find(c => nm(c) === 'filipe');
+    const zz = order.find(c => /zazo/.test(nm(c))), hu = order.find(c => nm(c) === 'hugo' || nm(c) === 'humasamo'), fi = order.find(c => nm(c) === 'filipe');
+    const ra = order.find(c => /^rafa/.test(nm(c)));
     if (zz) j.push(zz === win ? '👑 Zazo, Rei de Chaves.' : 'Zazo não ganhou?! Recontagem já.');
     if (hu) j.push(hu === win ? 'Hugo em P1?! Foi sorte.' : `Hugo em P${order.indexOf(hu) + 1}. Nem bom nem mau.`);
     if (fi) j.push(fi === order[order.length - 1] ? 'Filipe em último. Nada de novo.' : `Filipe em P${order.indexOf(fi) + 1}?! Alguém chame o VAR.`);
+    if (ra) j.push(hu ? (order.indexOf(ra) < order.indexOf(hu) ? 'Rafa à frente do irmão?! Finalmente. Foram só 3 horas.' : 'Rafa atrás do irmão. Outra vez. Só mais uma volta…') : `Rafa em P${order.indexOf(ra) + 1}. Sem o irmão por perto, assim é fácil.`);
     if (j.length) banner += '  ·  ' + j.join(' ');
   }
   document.getElementById('resBanner').textContent = banner;
@@ -5048,6 +5106,7 @@ async function fetchOnline() {
     const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=track,handling,name,lap_ms,created_at&handling=in.(f1,${dailyToday().key})&order=lap_ms.asc&limit=5000`, { headers: apiHeaders() });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     online.rows = await r.json(); online.ok = true; online.err = '';
+    if (rafaBoard) rafaBoard();
   } catch (e) { online.ok = false; online.err = String(e.message || e); }
   online.tried = true;
   if (state === 'menu') refreshMenu();
