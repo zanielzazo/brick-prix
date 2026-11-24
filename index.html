@@ -102,6 +102,9 @@
   .opt { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--dim); letter-spacing:.08em; text-transform:uppercase; }
   .seg { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button { background:transparent; border:0; color:var(--txt); padding:7px 13px; font:600 14px inherit; cursor:pointer; font-family:inherit; }
+  .ghb { white-space:nowrap; }
+  .ghb button { background:#262b33; border:1px solid #3a414c; color:#e8ebef; border-radius:6px; padding:3px 9px; margin-right:5px; font:700 12px inherit; font-family:inherit; cursor:pointer; }
+  .ghb button:hover { background:#353c47; border-color:#b388ff; }
   .seg button + button { border-left:1px solid var(--line); }
   .seg button.sel { background:var(--red); }
   .go { margin-top:20px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
@@ -1880,10 +1883,35 @@ function chaosWorld(dt) {                 // boxes respawn, projectiles move, ha
 }
 // Ghost: your best valid hot lap on this track + handling, sampled every 0.05 s and kept in this browser.
 let ghost = null, recGhost = null, ghostShow = null, ghostReq = 0, recState = 'idle';
-const GHOST_MODES = ['record', 'mine', 'off'], GHOST_NAMES = { record: 'RECORD GHOST', mine: 'MY BEST GHOST', off: 'GHOST OFF' };
+const GHOST_MODES = ['record', 'mine', 'player', 'off'], GHOST_NAMES = { record: 'RECORD GHOST', mine: 'MY BEST GHOST', player: 'PLAYER GHOST', off: 'GHOST OFF' };
+// Player ghost: any driver's lap from the leaderboard, picked with 👻 in 🏆 Records (one pick, for its track)
+const PICK_COL = '#b388ff';
+let pickG = null, pickState = 'idle', pickReq = 0;
+const pickNow = () => { const p = store.get('ghostPick', null); return p && p.track === TRACK.id && p.h === cfg.handling ? p : null; };
+const pickKey = p => p ? `${p.track}.${p.h}.${p.name.trim().toLowerCase()}` : '';
+function loadPickGhost() {
+  const p = pickNow();
+  if (!p) { pickState = 'none'; pickGhost(); return; }
+  if (pickG && pickG.key === pickKey(p)) { pickState = 'ok'; pickGhost(); return; }
+  const req = ++pickReq; pickState = 'loading'; pickG = null; pickGhost();
+  ghostFor(p.track, p.h, p.name).then(g => {
+    if (req !== pickReq) return;
+    if (g) g.key = pickKey(p);
+    pickG = g; pickState = g ? 'ok' : 'none'; pickGhost();
+    const c = cars[0];
+    if (g && c && isHot() && cfg.ghost === 'player' && c.msgT < 0.5) say(c, `GHOST: ${g.name} ${fmt(g.t)}`, PICK_COL, 2.2);
+  });
+}
+// a driver's best lap with a ghost: yours from this browser, anyone else's from the online leaderboard
+async function ghostFor(track, h, name) {
+  const loc = store.get(`ghost.${track}.${h}`, null);
+  if (loc && loc.s && loc.s.length > 1 && myNames.has(nameKey(name))) return { ...loc, dt: loc.dt || 0.05, name: name.trim() };
+  return fetchRecordGhost(track, h, name);
+}
 function pickGhost() {
   if (cfg.ghost === 'off') ghostShow = null;
   else if (cfg.ghost === 'mine') ghostShow = ghost;
+  else if (cfg.ghost === 'player') ghostShow = pickG && pickG.key === pickKey(pickNow()) ? pickG : null;
   else ghostShow = recGhost && ghost ? (ghost.t < recGhost.t ? ghost : recGhost) : (recGhost || ghost);
 }
 function loadRecordGhost() {
@@ -2019,6 +2047,7 @@ function startRace(rematch) {
     if (stuntRun() && ghost) cars[0].best = Math.min(cars[0].best, ghost.t);          // (a run compares with your best run, not just this one)
     recGhost = null; recState = 'idle'; pickGhost();
     if (cfg.ghost === 'record') loadRecordGhost();
+    else if (cfg.ghost === 'player') loadPickGhost();
   } else {
     cd = { t: 0, lights: 0, out: NET.race ? 6 : 5 + 0.4 + Math.random() * 1.6 };   // online: the same lights-out for everyone
     state = 'countdown'; paused = false;
@@ -2121,6 +2150,13 @@ function openReplay(photo) {
 }
 function closeReplay() {
   if (!replay) return;
+  if (replay.watch) {
+    document.getElementById('replayUI').classList.remove('show');
+    replay = null; rec = null; cars = []; GFX.reset(cars);
+    state = 'menu'; paused = false; AU.pause(false);
+    show('menu', true); refreshMenu(); showRecords();
+    return;
+  }
   cars.forEach((c, i) => Object.assign(c, replay.saved[i]));
   state = replay.prevState; paused = replay.prevPaused;
   document.getElementById('replayUI').classList.remove('show');
@@ -2333,8 +2369,10 @@ function onKeyPress(code) {
   if (code === 'Escape') setPause(true);
   if (code === 'KeyR' && isHot()) { startRace(false); return; }
   if (code === 'KeyG' && isHot()) {
-    cfg.ghost = GHOST_MODES[(GHOST_MODES.indexOf(cfg.ghost) + 1) % GHOST_MODES.length]; store.set('ghost', cfg.ghost);
+    const modes = GHOST_MODES.filter(m => m !== 'player' || pickNow());       // (a player ghost only if you picked one for this track)
+    cfg.ghost = modes[(modes.indexOf(cfg.ghost) + 1) % modes.length]; store.set('ghost', cfg.ghost);
     if (cfg.ghost === 'record' && !recGhost) loadRecordGhost();
+    if (cfg.ghost === 'player') loadPickGhost();
     pickGhost(); say(cars[0], GHOST_NAMES[cfg.ghost], '#9fd8ff', 1.2); return;
   }
   for (let p = 0; p < 2; p++) if (KEYMAP[p].cam.includes(code)) { const c = isSolo() ? cars[0] : cars[p]; if (c) cycleCam(c); }
@@ -4566,7 +4604,7 @@ function buildGfx() {
       const c = cars[0], g = ghostShow;
       let vis = false;
       if (g && c && c.timing) {
-        ghostMat.color.set(g === ghost ? '#4fc8ff' : '#ffc83d');
+        ghostMat.color.set(g === pickG ? PICK_COL : g === ghost ? '#4fc8ff' : '#ffc83d');
         const t = simTime - c.lapStart, smp = g.s;
         if (t <= g.t && smp.length > 1) {
           let k = clamp(Math.floor(t / (g.dt || 0.05)), 0, smp.length - 2);
@@ -4815,8 +4853,9 @@ function drawHud(vp, c) {
       if (cfg.ghost === 'off') label = 'Off – press G';
       else if (ghostShow) {
         label = ghostShow.name + ' · ' + fmt(ghostShow.t);
-        dot = ghostShow === ghost ? '#4fc8ff' : '#ffc83d';
-      } else if (cfg.ghost === 'record' && recState === 'loading') label = 'Loading record…';
+        dot = ghostShow === pickG ? PICK_COL : ghostShow === ghost ? '#4fc8ff' : '#ffc83d';
+      } else if (cfg.ghost === 'player') label = pickState === 'loading' ? 'Loading ghost…' : pickNow() ? 'No ghost for ' + pickNow().name : 'Pick one in 🏆 Records';
+      else if (cfg.ghost === 'record' && recState === 'loading') label = 'Loading record…';
       else if (cfg.ghost === 'mine') label = 'Drive a valid lap first';
       else label = onlineOn() ? 'No record ghost yet' : 'Offline – no record';
       const gx = x - 50;
@@ -5103,7 +5142,9 @@ const apiHeaders = () => ONLINE.key.startsWith('eyJ') ? { apikey: ONLINE.key, Au
 async function fetchOnline() {
   if (!onlineOn()) return;
   try {
-    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=track,handling,name,lap_ms,created_at&handling=in.(f1,${dailyToday().key})&order=lap_ms.asc&limit=5000`, { headers: apiHeaders() });
+    const q = cols => fetch(`${ONLINE.url}/rest/v1/lap_records?select=${cols}&handling=in.(f1,${dailyToday().key})&order=lap_ms.asc&limit=5000`, { headers: apiHeaders() });
+    let r = await q('track,handling,name,lap_ms,created_at,g:ghost->>v');
+    if (!r.ok) r = await q('track,handling,name,lap_ms,created_at');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     online.rows = await r.json(); online.ok = true; online.err = '';
     if (rafaBoard) rafaBoard();
@@ -5155,11 +5196,11 @@ function traceFromSamples(smp) {
   }
   return tr;
 }
-async function fetchRecordGhost(track, handling) {   // fastest lap that has a ghost
+async function fetchRecordGhost(track, handling, name) {   // fastest lap that has a ghost (of one driver, if named)
   if (!onlineOn()) return null;
   try {
-    const since = TRACKS[track].stunt ? `&created_at=gte.${STUNT_SINCE}` : '';
-    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=name,lap_ms,ghost&track=eq.${track}&handling=eq.${handling}&ghost=not.is.null${since}&order=lap_ms.asc&limit=1`, { headers: apiHeaders() });
+    const since = TRACKS[track].stunt ? `&created_at=gte.${STUNT_SINCE}` : '', who = name ? '&name=ilike.' + encodeURIComponent(name.trim().replace(/[%_*]/g, '')) : '';
+    const r = await fetch(`${ONLINE.url}/rest/v1/lap_records?select=name,lap_ms,ghost&track=eq.${track}&handling=eq.${handling}&ghost=not.is.null${since}${who}&order=lap_ms.asc&limit=1`, { headers: apiHeaders() });
     if (!r.ok) return null;
     const row = (await r.json())[0];
     if (!row || !row.ghost || !Array.isArray(row.ghost.p)) return null;
@@ -5237,6 +5278,66 @@ function boardFor(id, handling) {                // online + Claude's standing l
   return all.filter(r => { const k = r.name.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 function getRecord(id, handling) { return boardFor(id, handling)[0] || null; }
+function hasGhost(track, h, name) {
+  const k = nameKey(name);
+  if (myNames.has(k) && store.get(`ghost.${track}.${h}`, null)) return true;
+  return online.rows.some(r => r.g != null && r.track === track && r.handling === h && nameKey(r.name) === k && !staleStunt(r));
+}
+// 👻 Race: Hot lap (or the Daily) on that track against that driver's ghost – press Start on the menu
+function raceGhost(track, h, name, daily) {
+  if (state !== 'menu') return;
+  store.set('ghostPick', { track, h, name: name.trim() });
+  cfg.players = 1; store.set('players', 1);
+  cfg.mode = daily ? 'daily' : 'hot'; store.set('mode', cfg.mode);
+  cfg.ghost = 'player'; store.set('ghost', 'player');
+  cfg.cup = false; store.set('cup', false);
+  show('recordsOv', false);
+  if (!daily && track !== TRACK.id) {
+    store.set('track', track); document.getElementById('startBtn').textContent = 'Building track…';
+    setTimeout(() => { loadTrackData(track); if (GFX) GFX.buildScene(); cars = []; refreshMenu(); }, 30);
+  } else refreshMenu();
+}
+// ▶ Watch: a driver's lap as a replay (TV, onboard, rear or free camera), built from their ghost
+async function watchGhost(track, h, name, btn) {
+  if (state !== 'menu' || !GFX) return;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const g = await ghostFor(track, h, name);
+  if (btn) { btn.disabled = false; btn.textContent = '▶ Watch'; }
+  if (!g || !g.s || g.s.length < 3 || state !== 'menu') { if (btn) btn.textContent = 'no ghost'; return; }
+  if (track !== TRACK.id) { loadTrackData(track); GFX.buildScene(); if (h === 'f1') store.set('track', track); }
+  const c = makeCar(0), mineName = myNames.has(nameKey(name));
+  c.name = `${g.name || name} · ${fmt(g.t)}`;
+  c.col = mineName ? liveryFor(0) : COLORS[[...nameKey(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % COLORS.length];
+  cars = [c];
+  // the ghost's samples (every 0.05–0.1 s) → replay frames every 1/30 s, with speed, steering and brakes worked out
+  const smp = g.s, at = t => {
+    let k = 0; while (k < smp.length - 2 && smp[k + 1][0] <= t) k++;
+    const a = smp[k], b = smp[k + 1], f = clamp((t - a[0]) / ((b[0] - a[0]) || 1), 0, 1);
+    let dh = b[3] - a[3]; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+    return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + dh * f];
+  };
+  const end = Math.min(g.t, smp[smp.length - 1][0]), frames = [], g0 = nearestGlobal(smp[0][1], smp[0][2]), probe = { x: smp[0][1], y: smp[0][2], ti: g0 ? g0.j : 0 };
+  let wheel = 0, vPrev = null;
+  for (let t = 0; t <= end + 1e-6; t += REC_DT) {
+    const [x, y, hh] = at(t), [x2, y2, h2] = at(Math.min(end, t + 0.1)), [x0, y0] = at(Math.max(0, t - 0.1));
+    const v = Math.hypot(x2 - x0, y2 - y0) / (Math.min(end, t + 0.1) - Math.max(0, t - 0.1) || 1);
+    let dh = h2 - hh; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+    const yaw = dh / 0.1, delta = clamp(Math.atan(yaw * VEH.wb / Math.max(v, 3)), -0.4, 0.4);
+    wheel = (wheel + v * REC_DT / 0.36) % 6283.2;
+    probe.x = x; probe.y = y; const sl = trackLocal(probe);
+    const brk = vPrev != null && v < vPrev - 4 * REC_DT * 9.8 * 0.5 ? 1 : 0; vPrev = v;
+    frames.push(new Float32Array([x, y, groundAt(x, y), hh, 0, delta, wheel, v, sl, brk]));
+  }
+  rec = { frames, next: 0 };
+  GFX.reset(cars);
+  replay = { prevState: 'menu', prevPaused: false, saved: [], watch: { track, h, name }, t: 0, end: (frames.length - 1) * REC_DT, speed: 1, playing: true, follow: 0, cam: 'tv',
+    orbit: { yaw: smp[0][3] + Math.PI * 0.8, pitch: 0.28, dist: TRACK.kart ? 7 : 13 }, ui: true };
+  state = 'replay'; paused = false; AU.pause(true); parts = [];
+  show('recordsOv', false); show('menu', false);
+  document.getElementById('replayUI').classList.add('show');
+  document.getElementById('rpBar').max = replay.end.toFixed(2);
+  buildReplayUI(); applyReplayFrame(); GFX.replaySnap();
+}
 function refreshMenu() {
   const dailyMenu = cfg.players === 1 && cfg.mode === 'daily', D = dailyToday();
   cfg.handling = dailyMenu ? D.key : 'f1';
@@ -5326,9 +5427,10 @@ function refreshMenu() {
     : chaos
     ? '🎲 <b>Chaos</b>: hit the <span style="color:#ffb347">? boxes</span> for items and fire them with your boost key. Boost pads, jump ramps, weather, and drift boosts (hold throttle + brake while steering). No ERS or DRS; laps don\'t count for records.'
     : hot
-    ? '👻 <b>Ghost</b>: a see-through car replays the <span style="color:#ffc83d">track record</span> (from the online leaderboard) or <span style="color:#4fc8ff">your own best lap</span>. It starts when you cross the start line; <kbd>G</kbd> switches it while driving.'
+    ? '👻 <b>Ghost</b>: a see-through car replays the <span style="color:#ffc83d">track record</span> (from the online leaderboard), <span style="color:#4fc8ff">your own best lap</span> or <span style="color:#b388ff">any driver\'s lap</span> (👻 Race in 🏆 Records, where ▶ Watch replays it too). It starts when you cross the start line; <kbd>G</kbd> switches it while driving.'
     : '👻 Want to race a ghost of the track record? Choose <b>Players 1</b> → <b>Mode Hot lap</b>.';
-  seg('ghostSeg', [['record', 'Record'], ['mine', 'My best'], ['off', 'Off']], cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
+  const pk = pickNow();
+  seg('ghostSeg', [['record', 'Record'], ['mine', 'My best']].concat(pk ? [['player', '👻 ' + pk.name]] : []).concat([['off', 'Off']]), cfg.ghost === 'player' && !pk ? null : cfg.ghost, v => { cfg.ghost = v; store.set('ghost', v); });
   document.getElementById('pc1').classList.toggle('off', solo);
   document.getElementById('soloNote').style.display = solo ? '' : 'none';
   document.getElementById('startBtn').textContent = battle ? 'Start battle' : daily ? 'Start daily challenge' : hot ? 'Start hot lap' : (chaos ? 'Start chaos ' : 'Start ') + (cupOn() ? 'cup' : 'race');
@@ -5408,15 +5510,23 @@ function showRecords() {
     tabs.appendChild(b);
   }
   const mine = new Set(cfg.names.map(n => n.trim().toLowerCase()));
-  const board = h => {
-    const dly = recTab === 'daily', rows = boardFor(dly ? D.track : recTab, dly ? D.key : h).slice(0, 15), lead = rows.length ? rows[0].t : 0;
+  const board = h => {      // (uses menuNow and boardRows, set below before it's called)
+    const dly = recTab === 'daily', tr = dly ? D.track : recTab, hh = dly ? D.key : h, rows = boardFor(tr, hh).slice(0, 15), lead = rows.length ? rows[0].t : 0;
+    boardRows = { rows, tr, hh, dly };
     return (dly ? `<div class="sub" style="margin-top:14px">Daily challenge ${D.day}: <b style="color:#fff">${esc(TRACKS[D.track].title)}</b> · ${D.cond.icon} ${D.cond.name} – ${D.cond.desc}. New one in ${dailyLeft()}.</div>` : '') +
-      '<div style="margin-top:14px"><table><tr><th>#</th><th>Driver</th><th>Lap</th><th>Gap</th></tr>' +
+      '<div style="margin-top:14px"><table><tr><th>#</th><th>Driver</th><th>Lap</th><th>Gap</th><th title="Race this driver\'s ghost, or watch the lap">Ghost</th></tr>' +
       (rows.length ? rows.map((r, i) => `<tr class="${mine.has(r.name.trim().toLowerCase()) && !isDefaultName(r.name) ? 'me' : ''}" title="${r.d}"><td class="pos" style="font-size:15px">${i + 1}</td><td>${esc(r.name)}</td>` +
-        `<td class="num"><b>${fmt(r.t)}</b></td><td class="num" style="color:var(--dim)">${i ? '+' + (r.t - lead).toFixed(3) : ''}</td></tr>`).join('')
-        : '<tr><td colspan="4" style="color:var(--dim)">No laps yet</td></tr>') + '</table></div>';
+        `<td class="num"><b>${fmt(r.t)}</b></td><td class="num" style="color:var(--dim)">${i ? '+' + (r.t - lead).toFixed(3) : ''}</td>` +
+        `<td class="ghb">${hasGhost(tr, hh, r.name) && menuNow ? `<button data-race="${i}" title="Race this ghost in Hot lap">👻 Race</button><button data-watch="${i}" title="Watch this lap">▶ Watch</button>` : '<span style="color:var(--dim)">–</span>'}</td></tr>`).join('')
+        : '<tr><td colspan="5" style="color:var(--dim)">No laps yet</td></tr>') + '</table></div>';
   };
+  const menuNow = state === 'menu';
+  let boardRows = null;
   document.getElementById('recBody').innerHTML = board('f1');
+  if (boardRows) document.querySelectorAll('#recBody [data-race], #recBody [data-watch]').forEach(b => {
+    const { rows, tr, hh, dly } = boardRows, r = rows[+(b.dataset.race ?? b.dataset.watch)];
+    b.onclick = () => b.dataset.race != null ? raceGhost(tr, hh, r.name, dly) : watchGhost(tr, hh, r.name, b);
+  });
   show('recordsOv', true);
 }
 

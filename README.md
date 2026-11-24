@@ -39,7 +39,7 @@ Karts have no ERS or DRS.
 ## Modes
 
 - **2 players**: split screen, standing start, 1–10 laps
-- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, ERS refilled at the line every lap, track limits in the last sector delete the next lap too, as in F1, and a **ghost car**: the track record holder's lap in gold, your own best in blue, or off)
+- **1 player**: race from the grid, or **Hot lap** (rolling start, endless timed laps, live delta, ERS refilled at the line every lap, track limits in the last sector delete the next lap too, as in F1, and a **ghost car**: the track record holder's lap in gold, your own best in blue, any driver's lap in purple, or off)
 - **🎈 Battle** (1 or 2 players, plus CPU drivers): no track – a round arena (150 m across) with a giant balloon monument in the middle, four brick pillars, boost pads, two jump ramps, item boxes and a packed crowd. Everyone starts with 3 balloons; the Chaos items pop them: an oil slick or brick wall dropped behind you, a loose tyre fired straight ahead (it bounces off the walls), or ramming someone while your turbo is on. A pop gives you a moment of mercy; lose all three and you're out. The last car with balloons wins, or the most balloons after 3 minutes. The CPU drivers grab items, hunt the nearest rival and steer round the pillars.
 - **📅 Daily challenge** (1 player): one track and one condition a day (rain, worn tyres, no ERS, no DRS, full tanks, storm or glitter storm), picked from the UTC date so it's the same for everyone, driven as a hot lap. It has its own online leaderboard (the **📅 Today** tab in Records, and "Best today" on the menu) and its own ghosts; a new challenge starts every day at 00:00 UTC. Needs the Daily Challenge lines of `supabase.sql` run once.
 - **Chaos** (1 or 2 players): mystery **?** boxes on the straights give you an item, and your boost key fires it. Whoever is behind gets better items. No ERS, DRS or track-limit penalties; chaos laps don't count for records.
@@ -81,7 +81,7 @@ You can also use gamepads (right trigger to accelerate, left trigger to brake, s
 
 ## Track records
 
-The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the leaderboard (each driver's best valid lap, with the gap to the leader). They start with Claude's hot laps as the times to beat:
+The **🏆 Records** screen on the menu has a tab for each circuit. Each tab shows the leaderboard (each driver's best valid lap, with the gap to the leader). Next to each driver: **👻 Race** sets that driver's lap as your ghost and gets the menu ready for a hot lap on that track (press Start; G still switches ghosts), and **▶ Watch** replays the lap with the replay cameras (TV, onboard, rear, free; Esc goes back to Records). Any lap uploaded with a ghost can be raced or watched. They start with Claude's hot laps as the times to beat:
 
 | Circuit | Lap |
 |---|---|
