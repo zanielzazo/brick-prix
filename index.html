@@ -1327,6 +1327,7 @@ let simTime = 0, raceStart = 0, cd = null;
 let cars = [], parts = [], finishOrder = [], resultsAt = 0;
 let session = { bestLap: Infinity, bestBy: -1, bestSec: [Infinity, Infinity, Infinity] };
 let rafaBoard = null;          // Chaves: redraws Rafa's scoreboard over the track with the latest online laps
+const online = { ok: false, rows: [], tried: false, err: '' };   // online laps (declared early: the Chaves scene reads them while it builds)
 let gridFlip = Math.random() < 0.5;
 const cfg = {
   laps: store.get('laps', 3), cam: (v => v === 'chase' ? 'rear' : v)(store.get('cam3d', 'onboard')),   // old 'chase' setting → rear cam
@@ -5096,7 +5097,6 @@ const SEED_RECORDS = {
 // The anon key is a public key by design: the database only allows reading laps and adding new
 // ones (no edits/deletes), and rejects impossible lap times. See supabase.sql.
 const ONLINE = { url: 'https://znehfqxorrkunvyimvad.supabase.co', key: 'sb_publishable_-7OpDVauEUp38v7TVRC8eQ_g8xNwf_F' };
-const online = { ok: false, rows: [], tried: false, err: '' };
 const onlineOn = () => !!(ONLINE.url && ONLINE.key);
 // legacy anon keys are JWTs (eyJ…) and go in Authorization too; new sb_publishable_ keys only in apikey
 const apiHeaders = () => ONLINE.key.startsWith('eyJ') ? { apikey: ONLINE.key, Authorization: 'Bearer ' + ONLINE.key } : { apikey: ONLINE.key };
