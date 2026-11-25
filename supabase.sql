@@ -169,3 +169,30 @@ alter table public.lap_records add constraint plausible_lap check (
 -- Optional, for the stunt tracks' standing start (23 Nov 2026): the game already ignores the older rolling-start stunt laps,
 -- but this removes them from the table for good.
 delete from public.lap_records where track in ('st1', 'st2', 'st3', 'st4', 'st5', 'ks1', 'ks2', 'ks3', 'ks4', 'ks5') and created_at < '2026-11-23T13:31:59Z';
+
+-- Added later: daily boosts (25 Nov 2026). The Daily challenge now gives you more grip and/or power (up to +50% power and
+-- +40% grip), so its laps can be much faster than a normal lap. Daily laps (handling 'dYYYYMMDD') may now be down to 70%
+-- of each track's minimum; normal laps keep the same minimum.
+alter table public.lap_records drop constraint if exists plausible_lap;
+alter table public.lap_records add constraint plausible_lap check (
+  lap_ms <= 400000 and lap_ms >= (case track
+    when 'algarve'     then 70000
+    when 'spa'         then 91000
+    when 'monza'       then 70000
+    when 'rbr'         then 55000
+    when 'silverstone' then 79000
+    when 'chaves'      then 22000
+    when 'graz'        then 15000
+    when 'lowg'        then 35000
+    when 'monaco'      then 55000
+    when 'st1'         then 20000
+    when 'st2'         then 23000
+    when 'st3'         then 20000
+    when 'st4'         then 17000
+    when 'st5'         then 22000
+    when 'ks1'         then 20000
+    when 'ks2'         then 22000
+    when 'ks3'         then 23000
+    when 'ks4'         then 21000
+    when 'ks5'         then 21000
+  end) * (case when handling like 'd%' then 0.7 else 1 end));

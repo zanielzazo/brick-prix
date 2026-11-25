@@ -242,7 +242,7 @@
         <div><b>Slipstream</b> – sit right behind your rival for a tow.</div>
         <div><b>Hot lap</b> (1 player) – rolling start, endless timed laps, live delta, ERS refilled at the line. Leave the track in the last sector and the next lap is deleted too. <kbd>R</kbd> restarts the run. <kbd>T</kbd> shows the lap telemetry.</div>
         <div><b>🎈 Battle</b> – no track: a round arena where everyone has 3 balloons. Items from the ? boxes pop them – oil, a loose tyre (it bounces off the walls), a brick wall, or ramming someone with your turbo on. Lose all three and you're out; last car with balloons wins (or the most after 3 minutes).</div>
-        <div><b>📅 Daily</b> (1 player) – one track and one condition a day (rain, worn tyres, no ERS, no DRS, full tanks, storm or glitter), the same for everyone, as a hot lap with its own leaderboard: the "📅 Today" tab in Records. A new one every day at 00:00 UTC.</div>
+        <div><b>📅 Daily</b> (1 player) – one track and one condition a day – always a boost: sticky tyres, a rocket engine, party mode, a glitter storm, endless ERS or hyper mode –, the same for everyone, as a hot lap with its own leaderboard: the "📅 Today" tab in Records. A new one every day at 00:00 UTC.</div>
         <div><b>Ghost</b> – in Hot lap, chase a see-through replay of the track record (gold) or your own best lap (blue). It starts at the line; <kbd>G</kbd> switches it.</div>
         <div><b>Track limits</b> – all four wheels past the white line (kerbs are outside it) deletes that lap time. In races: go wide and keep your speed on the kerb or run-off → warning; cut a corner → slow down to give the time back + warning; a real mistake (grass, big moment) isn't punished again. After 3 warnings each one costs +5 s.</div>
         <div><b>🌐 Online</b> – one of you creates a room and shares the 4-letter code (or the invite link); everyone joins from their own browser and the host picks the track, Race or Hot lap together, and starts it for everyone. Each car is driven on its own computer and the others appear live (a fraction of a second behind). No contact between cars yet; pausing doesn't stop an online race.</div>
@@ -2433,7 +2433,7 @@ function physics(c, inp, dt, locked) {
   const trac = G * (H.tracA + 0.0004 * vf * vf) * surf.grip * gm;
   const dc = dailyNow && isDaily() ? dailyNow.cond : null, pwK = dc && dc.power || 1;
   c.boostOn = !locked && !isChaos() && !TRACK.kart && !(dc && dc.noErs) && inp.boost && thr > 0.2 && c.ers > 0.005 && vf > 3 && VEH.power / vf < trac;
-  if (c.boostOn) c.ers = Math.max(0, c.ers - ERS_USE * dt);
+  if (c.boostOn && !(dc && dc.infErs)) c.ers = Math.max(0, c.ers - ERS_USE * dt);
   let ax = 0;
   if (thr > 0) {
     const turbo = c.turboT > 0;
@@ -5720,14 +5720,14 @@ function showBattleResults() {
 // ---------------------------------------------------------------- daily challenge
 // One track and one condition per day – the UTC date, so it's the same for everyone – with its own leaderboard
 // (laps stored with handling 'dYYYYMMDD'). It's a hot lap with that condition; the best valid lap of the day counts.
+// (since 25 Nov 2026 every condition is a boost – the Daily is meant to be fun, not harder)
 const DAILY_CONDS = [
-  { id: 'rain', name: 'Rain', icon: '🌧', desc: 'a wet track – 18% less grip everywhere', rain: true },
-  { id: 'worn', name: 'Worn tyres', icon: '🛞', desc: 'old rubber – 12% less grip all lap', grip: 0.88 },
-  { id: 'noers', name: 'No ERS', icon: '🔋', desc: 'the battery is flat – no boost at all', noErs: true, f1: true },
-  { id: 'nodrs', name: 'No DRS', icon: '🚫', desc: 'the rear wing stays shut all lap', noDrs: true, f1: true },
-  { id: 'heavy', name: 'Full tanks', icon: '⛽', desc: 'a heavy car – 10% less power', power: 0.9 },
-  { id: 'storm', name: 'Storm', icon: '⛈', desc: 'rain and no ERS – survive it', rain: true, noErs: true, f1: true },
-  { id: 'glitter', name: 'Glitter storm', icon: '✨', desc: 'sparkly and slippery – 10% less grip', glitter: true, grip: 0.9 },
+  { id: 'sticky', name: 'Sticky tyres', icon: '🍯', desc: 'glue on the rubber – 30% more grip', grip: 1.3 },
+  { id: 'rocket', name: 'Rocket engine', icon: '🚀', desc: '35% more power – hold on', power: 1.35 },
+  { id: 'party', name: 'Party mode', icon: '🎉', desc: '25% more grip and 25% more power', grip: 1.25, power: 1.25 },
+  { id: 'glitter', name: 'Glitter storm', icon: '✨', desc: 'sparkly and sticky – 15% more grip', glitter: true, grip: 1.15 },
+  { id: 'ers', name: 'Endless ERS', icon: '⚡', desc: 'the battery never runs out – boost all lap', infErs: true, f1: true },
+  { id: 'hyper', name: 'Hyper mode', icon: '💥', desc: '50% more power and 40% more grip – absolutely sending it', grip: 1.4, power: 1.5 },
 ];
 let dailyNow = null;                 // the challenge being driven right now (fixed at the start of the run)
 function dailyFor(date, avoid) {
