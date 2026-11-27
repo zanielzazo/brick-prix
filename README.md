@@ -6,13 +6,13 @@ A browser racing game in the style of Formula 1 for one or two players on one ke
 
 ## Tracks
 
-Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão) · Monaco
+Spa-Francorchamps · Red Bull Ring · Monza · Silverstone · Algarve (Portimão) · Monaco · Fiumicino (airfield circuit)
 
 **Kart tracks** (their own row on the menu): Kartódromo de Chaves · Graz (Styria Karting Premstätten) · Graz Airport (apron circuit)
 
 **Stunt tracks** (their own row too): Brickyard · Icebox · Dust Bowl · Rollercoaster · Boost Alley
 
-The layouts are the real circuits, taken from OpenStreetMap. Elevation and scenery are approximate.
+The layouts are the real circuits, taken from OpenStreetMap (Fiumicino and Graz Airport are made-up circuits on real airports). Elevation and scenery are approximate.
 
 Chaves is a real-size kart track (0.59 km, 12 turns, flat), raced in karts instead of F1 cars: about 90 km/h flat out, no downforce, rear brakes only, and a lap of roughly 30–35 s. Its sections run close side by side, so tyre walls sit between them. It isn't part of the Cup. Past Curva do Zazo there's a croquetas stand where Filipe eats a croqueta, turns green and throws up, over and over. Over the longest straight hangs Rafa Moço's scoreboard: Rafa against his brother Hugo, live from the online leaderboard (the gap, his personal bests, 3 hours, "só mais uma volta…"). In races Rafa drives too, always just behind his brother.
 
@@ -25,6 +25,8 @@ Around Graz there's more to look at: skiers and a chairlift on a snowy mountain 
 Karts have no ERS or DRS.
 
 **Monaco** is the street circuit (3.3 km, 19 turns) from OpenStreetMap: barriers right at the edge of the road the whole way round (so there's no track-limits rule; the walls are the limit), the climb from Sainte Dévote up Beau Rivage to the Casino, the Grand Hotel hairpin, and a real tunnel after Portier where the daylight fades out and the lamps take over. The harbour beside the Piscine and La Rascasse is full of yachts, the sea runs along the tunnel, and apartment blocks climb the hill all round. DRS on the pit straight. It isn't part of the Cup.
+
+**Fiumicino** is a made-up F1 circuit (5.56 km, 12 turns, flat) on the real airside of Rome Fiumicino airport, laid out on its runway and taxiways. The grid is on runway 07/25, raced towards 25, with a 1.5 km run to Turn 1 (Leonardo) at the runway threshold. Then the lap goes through the taxiways west of the terminals, a hairpin between two pier lanes (Il Tornante), sweeping esses, a straight past the piers and their parked aircraft (Gate B to Pushback), and up the diagonal taxiway back onto the runway (Line Up). The runway paint and the yellow taxi lines show on the circuit. The aprons, taxiways, runways, paint and stands are Aeroficial's airside layout; the buildings are OpenStreetMap footprints at their real heights, measured by the Italian Ministry of Environment's airborne LiDAR. Runway 25 is closed for the race, so traffic lands on 16L and departs from 16R, right past the west end of the circuit. It isn't part of the Cup, and it joins the Daily challenge from 28 Nov 2026.
 
 **Stunt tracks** are short made-up kart circuits for time attack, Trackmania-style (about 0.55–0.65 km, runs of roughly 30–35 s). **Hot lap is the time attack, as in Trackmania: a standing start on the line, three lights, the clock starts at GO and stops at the line, then the next run starts by itself** (R restarts at any time). Races start from the grid as usual. Each one is generated from a fixed seed, so everyone gets the same five: straights and tight corners between tyre walls (no track-limits rule), then the stunt bits on top: full-width **boost pads**, **jump ramps** (about a second of airtime, no steering in the air), patches of **ice** (very little grip) or **dirt** (less grip), hills (Rollercoaster climbs 11 m), and two **checkpoint** gates that show your split against your best lap (blue ahead, red behind). Each track has **medals**: 🏁 Author (Claude's lap), 🥇 Gold (+7%), 🥈 Silver (+20%) and 🥉 Bronze (+45%); the medals and times are on the menu, and the best medal you've won shows on the track button. They work in every mode (hot lap is the time attack; races, Chaos and online too), but not in the Cup or the Daily. Their online leaderboards need the stunt-track lines of `supabase.sql` run once.
 
@@ -94,6 +96,7 @@ The **🏆 Records** screen on the menu has a tab for each circuit. Each tab sho
 | Graz (karts) | 0:23.733 |
 | Graz Airport (karts) | 0:51.092 |
 | Monaco | 1:15.483 |
+| Fiumicino | 1:22.442 |
 | Stunt tracks | the 🏁 Author times above |
 
 **The leaderboard is online and shared by everyone.** Set your name on the menu, drive a valid lap, and your personal best is uploaded ("LAP UPLOADED"). Laps under the default names "Player 1" and "Player 2" aren't uploaded, but when you then type your name on the menu, those laps saved in your browser are renamed and uploaded. Names are first come, first served: a name that is already on the leaderboard belongs to whoever set those laps, so a new player has to pick another one (your browser remembers the names you race with).
@@ -109,7 +112,9 @@ The online records use a free [Supabase](https://supabase.com) table (see [`supa
 
 Made by **Zaniel Zazo b2b Claudius Maximus**.
 
-- Track layouts © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available under the Open Database License (ODbL)
+- Track layouts and building footprints © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available under the Open Database License (ODbL)
+- Fiumicino airside layout (aprons, taxiways, runways, markings and stands): Aeroficial
+- Fiumicino building heights: PST-A airborne LiDAR, Ministero dell'Ambiente e della Sicurezza Energetica (MASE), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 - 3D rendering: [three.js](https://threejs.org) (MIT), loaded from cdnjs
 
 This is a fan project with no connection to Formula 1 or the circuits.
